@@ -142,6 +142,7 @@ When browsing your chat history, you'll see:
   - **Terminal commands** - Complete command text
   - **Directory listings** - Paths explored
   - **Tool errors** - Failed/cancelled operations shown with ❌ status indicator and parameters
+  - **User decisions** - Shows if you accepted (✓), rejected (✗), or pending (⏳) on tool operations
   - **Errors** - Error messages with ❌ emoji highlighting (extracted from `toolFormerData.additionalData.status`)
 - **AI reasoning** - See the AI's thinking process behind decisions (use `--think` for full text)
 - **Code artifacts** - Mermaid diagrams, code blocks, with syntax highlighting

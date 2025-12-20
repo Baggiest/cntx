@@ -589,7 +589,15 @@ export function getGlobalSession(index: number): ChatSession | null {
 /**
  * Format a tool call for display
  */
-function formatToolCall(toolData: { name?: string; params?: string; result?: string; status?: string }, isError = false): string {
+function formatToolCall(
+  toolData: {
+    name?: string;
+    params?: string;
+    result?: string;
+    status?: string;
+    additionalData?: { status?: string; userDecision?: string };
+  }
+): string {
   const lines: string[] = [];
   const toolName = toolData.name ?? 'unknown';
 
@@ -640,6 +648,22 @@ function formatToolCall(toolData: { name?: string; params?: string; result?: str
     lines.push(`[Tool: Terminal Command]`);
     const cmd = getParam('command', 'cmd');
     if (cmd) lines.push(`Command: ${cmd}`);
+
+    // Show command output from result
+    if (toolData.result) {
+      try {
+        const result = JSON.parse(toolData.result);
+        if (result.output && typeof result.output === 'string') {
+          const output = result.output.trim();
+          if (output) {
+            const preview = output.slice(0, 500);
+            lines.push(`Output: ${preview}${output.length > 500 ? '...' : ''}`);
+          }
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
   } else if (toolName === 'edit_file' || toolName === 'search_replace') {
     lines.push(`[Tool: ${toolName === 'search_replace' ? 'Search & Replace' : 'Edit File'}]`);
     const file = getParam('targetFile', 'path', 'file', 'filePath', 'relativeWorkspacePath');
@@ -656,7 +680,7 @@ function formatToolCall(toolData: { name?: string; params?: string; result?: str
     lines.push(`[Tool: ${toolName === 'create_file' ? 'Create File' : 'Write File'}]`);
     const file = getParam('targetFile', 'path', 'file', 'relativeWorkspacePath');
     if (file) lines.push(`File: ${file}`);
-    // Note: Content is extracted from bubble's text field in extractBubbleText(), not from params
+    // Note: Content is extracted from bubble's codeBlocks field in extractBubbleText(), not from params
   } else {
     // Generic tool - show all string params
     lines.push(`[Tool: ${toolName}]`);
@@ -666,11 +690,37 @@ function formatToolCall(toolData: { name?: string; params?: string; result?: str
         lines.push(`${label}: ${val.length > 100 ? val.slice(0, 100) + '...' : val}`);
       }
     }
+
+    // Try to extract result for generic tools
+    if (toolData.result) {
+      try {
+        const result = JSON.parse(toolData.result);
+        // Check for common result fields
+        const resultText = result.output || result.result || result.content || result.text;
+        if (resultText && typeof resultText === 'string' && resultText.trim()) {
+          const preview = resultText.slice(0, 500);
+          lines.push(`Result: ${preview}${resultText.length > 500 ? '...' : ''}`);
+        }
+      } catch {
+        // If result is not JSON, show it directly if it's a string
+        if (typeof toolData.result === 'string' && toolData.result.length > 0 && toolData.result.length < 1000) {
+          lines.push(`Result: ${toolData.result}`);
+        }
+      }
+    }
   }
 
-  // Add error/cancelled status indicator
-  if (isError || toolData.status === 'cancelled' || toolData.status === 'error') {
-    lines.push(`Status: ❌ ${toolData.status ?? 'error'}`);
+  // Add status indicator (for all tools)
+  if (toolData.status) {
+    const statusEmoji = toolData.status === 'completed' ? '✓' : '❌';
+    lines.push(`Status: ${statusEmoji} ${toolData.status}`);
+  }
+
+  // Add user decision if present (accepted/rejected/pending)
+  const userDecision = (toolData.additionalData as any)?.userDecision;
+  if (userDecision && typeof userDecision === 'string') {
+    const decisionEmoji = userDecision === 'accepted' ? '✓' : userDecision === 'rejected' ? '✗' : '⏳';
+    lines.push(`User Decision: ${decisionEmoji} ${userDecision}`);
   }
 
   return lines.join('\n');
@@ -807,25 +857,17 @@ function extractBubbleText(data: Record<string, unknown>): string {
 
   // Priority 2: Check if it's a tool call with name (completed, cancelled, or error)
   if (toolFormerData?.name) {
-    // For write tools, extract content from codeBlocks if available
-    if ((toolFormerData.name === 'write' || toolFormerData.name === 'write_file' || toolFormerData.name === 'create_file')) {
-      const toolInfo = formatToolCall(toolFormerData, isError);
+    const toolInfo = formatToolCall(toolFormerData);
 
-      // Extract content from codeBlocks
-      const codeBlocks = data['codeBlocks'] as Array<{ content?: string }> | undefined;
-      if (codeBlocks && codeBlocks.length > 0 && codeBlocks[0]?.content) {
-        const content = codeBlocks[0].content;
-        const preview = content.slice(0, 200).replace(/\n/g, '\\n');
-        return toolInfo + `\nContent: ${preview}${content.length > 200 ? '...' : ''}`;
-      }
-
-      return toolInfo;
+    // Extract content from codeBlocks if available (for ANY tool type)
+    const codeBlocks = data['codeBlocks'] as Array<{ content?: string }> | undefined;
+    if (codeBlocks && codeBlocks.length > 0 && codeBlocks[0]?.content) {
+      const content = codeBlocks[0].content;
+      const preview = content.slice(0, 200).replace(/\n/g, '\\n');
+      return toolInfo + `\nContent: ${preview}${content.length > 200 ? '...' : ''}`;
     }
 
-    const toolDisplay = formatToolCall(toolFormerData, isError);
-    if (toolDisplay) {
-      return toolDisplay;
-    }
+    return toolInfo;
   }
 
   // Extract codeBlocks content
