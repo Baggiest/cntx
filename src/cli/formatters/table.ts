@@ -156,18 +156,26 @@ function isThinking(content: string): boolean {
 /**
  * Format thinking text with nice styling
  */
-function formatThinkingDisplay(content: string): string {
+function formatThinkingDisplay(content: string, fullThinking: boolean): string {
   const text = content.replace('[Thinking]\n', '').trim();
   const lines: string[] = [];
   lines.push(pc.yellow(pc.bold('💭 Thinking')));
-  lines.push(pc.dim('   ' + text.slice(0, 200) + (text.length > 200 ? '...' : '')));
+
+  if (fullThinking) {
+    // Show full thinking text
+    lines.push(pc.dim('   ' + text));
+  } else {
+    // Show truncated thinking text (default)
+    lines.push(pc.dim('   ' + text.slice(0, 200) + (text.length > 200 ? '...' : '')));
+  }
+
   return lines.join('\n');
 }
 
 /**
  * Format tool call content with nice styling
  */
-function formatToolCallDisplay(content: string): string {
+function formatToolCallDisplay(content: string, fullRead: boolean): string {
   const lines = content.split('\n');
   const result: string[] = [];
 
@@ -182,7 +190,14 @@ function formatToolCallDisplay(content: string): string {
     } else if (line.startsWith('Content:')) {
       // Content preview
       const preview = line.replace('Content:', '').trim();
-      result.push(pc.dim('   Content: ') + pc.gray(preview.slice(0, 100) + (preview.length > 100 ? '...' : '')));
+
+      if (fullRead) {
+        // Show full content for file reads
+        result.push(pc.dim('   Content: ') + pc.gray(preview));
+      } else {
+        // Show truncated content (default)
+        result.push(pc.dim('   Content: ') + pc.gray(preview.slice(0, 100) + (preview.length > 100 ? '...' : '')));
+      }
     } else {
       result.push('   ' + line);
     }
@@ -194,8 +209,13 @@ function formatToolCallDisplay(content: string): string {
 /**
  * Format a single session with full messages
  */
-export function formatSessionDetail(session: ChatSession, workspacePath?: string): string {
+export function formatSessionDetail(
+  session: ChatSession,
+  workspacePath?: string,
+  options?: { short?: boolean; fullThinking?: boolean; fullRead?: boolean }
+): string {
   const lines: string[] = [];
+  const { short = false, fullThinking = false, fullRead = false } = options ?? {};
 
   // Header
   lines.push(pc.bold(`Chat Session #${session.index}`));
@@ -222,7 +242,7 @@ export function formatSessionDetail(session: ChatSession, workspacePath?: string
     // Check if this is a tool call
     if (isToolCall(message.content)) {
       lines.push(`${pc.cyan(pc.bold('Tool:'))} ${timestamp}`);
-      lines.push(formatToolCallDisplay(message.content));
+      lines.push(formatToolCallDisplay(message.content, fullRead));
       lines.push('');
       lines.push(pc.dim('─'.repeat(40)));
       lines.push('');
@@ -232,7 +252,7 @@ export function formatSessionDetail(session: ChatSession, workspacePath?: string
     // Check if this is thinking/reasoning
     if (isThinking(message.content)) {
       lines.push(`${pc.magenta(pc.bold('Thinking:'))} ${timestamp}`);
-      lines.push(formatThinkingDisplay(message.content));
+      lines.push(formatThinkingDisplay(message.content, fullThinking));
       lines.push('');
       lines.push(pc.dim('─'.repeat(40)));
       lines.push('');
@@ -246,7 +266,15 @@ export function formatSessionDetail(session: ChatSession, workspacePath?: string
 
     lines.push(roleLabel);
     lines.push('');
-    lines.push(message.content);
+
+    // Apply short mode truncation for user and assistant messages
+    if (short) {
+      const truncatedContent = truncate(message.content, 300);
+      lines.push(truncatedContent);
+    } else {
+      lines.push(message.content);
+    }
+
     lines.push('');
     lines.push(pc.dim('─'.repeat(40)));
     lines.push('');

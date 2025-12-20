@@ -11,6 +11,9 @@ import { expandPath } from '../../lib/platform.js';
 interface ShowCommandOptions {
   json?: boolean;
   dataPath?: string;
+  short?: boolean;
+  think?: boolean;
+  fullread?: boolean;
 }
 
 /**
@@ -20,6 +23,9 @@ export function registerShowCommand(program: Command): void {
   program
     .command('show <index>')
     .description('Show a chat session by index')
+    .option('-s, --short', 'Truncate user and assistant messages')
+    .option('-t, --think', 'Show full thinking/reasoning text')
+    .option('-f, --fullread', 'Show full file read content')
     .action(async (indexArg: string, options: ShowCommandOptions, command: Command) => {
       const globalOptions = command.parent?.opts() as { json?: boolean; dataPath?: string };
       const useJson = options.json ?? globalOptions?.json ?? false;
@@ -46,7 +52,13 @@ export function registerShowCommand(program: Command): void {
         if (useJson) {
           console.log(formatSessionJson(session, session.workspacePath));
         } else {
-          console.log(formatSessionDetail(session, session.workspacePath));
+          console.log(
+            formatSessionDetail(session, session.workspacePath, {
+              short: options.short ?? false,
+              fullThinking: options.think ?? false,
+              fullRead: options.fullread ?? false,
+            })
+          );
         }
       } catch (error) {
         handleError(error);

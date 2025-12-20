@@ -98,10 +98,13 @@ Tool calls are stored in `toolFormerData`:
 
 ### Display Formatters (`src/cli/formatters/table.ts`)
 
-- `formatSessionDetail()` - Shows full session with timestamps alongside role labels
+- `formatSessionDetail(session, workspacePath, options)` - Shows full session with display options
+  - `options.short` - Truncates user/assistant messages to 300 chars
+  - `options.fullThinking` - Shows full thinking text (not truncated to 200 chars)
+  - `options.fullRead` - Shows full file read content (not truncated to 100 chars)
 - `formatTime()` - Formats timestamps as HH:MM:SS
-- `formatToolCallDisplay()` - Formats tool calls parsed from `[Tool: ...]` markers
-- `formatThinkingDisplay()` - Formats thinking blocks with preview
+- `formatToolCallDisplay(content, fullRead)` - Formats tool calls with optional full read content
+- `formatThinkingDisplay(content, fullThinking)` - Formats thinking blocks with optional full text
 - Role labels with timestamps: `You: HH:MM:SS`, `Assistant: HH:MM:SS`, `Tool: HH:MM:SS`, `Thinking: HH:MM:SS`
 
 ## CLI Commands
@@ -109,9 +112,15 @@ Tool calls are stored in `toolFormerData`:
 | Command | Description |
 |---------|-------------|
 | `list` | List sessions (--all, --ids, --workspaces, -n) |
-| `show <index>` | Show session details |
+| `show <index>` | Show session details (-s/--short, -t/--think, -f/--fullread) |
 | `search <query>` | Search across sessions (-n, --context) |
 | `export [index]` | Export to md/json (--all, -o, -f, --force) |
+
+### Show Command Options
+
+- `-s, --short` - Truncate user and assistant messages to 300 characters
+- `-t, --think` - Show full AI thinking/reasoning text (default: 200 char preview)
+- `-f, --fullread` - Show full file read content (default: 100 char preview)
 
 ### Global Options
 

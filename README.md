@@ -64,6 +64,18 @@ cursor-history list --workspaces
 # Show session by index number
 cursor-history show 1
 
+# Show with truncated messages (for quick overview)
+cursor-history show 1 --short
+
+# Show full AI thinking/reasoning text
+cursor-history show 1 --think
+
+# Show full file read content (not truncated)
+cursor-history show 1 --fullread
+
+# Combine options
+cursor-history show 1 --short --think --fullread
+
 # Output as JSON
 cursor-history show 1 --json
 ```
@@ -121,13 +133,20 @@ When browsing your chat history, you'll see:
 - **Timestamps** - Exact time each message was sent (HH:MM:SS format)
 - **AI tool actions** - Detailed view of what Cursor AI did:
   - **File edits/writes** - Full diff display with syntax highlighting showing exactly what changed
-  - **File reads** - File paths and content previews
+  - **File reads** - File paths and content previews (use `--fullread` for complete content)
   - **Search operations** - Patterns, paths, and search queries used
   - **Terminal commands** - Complete command text
   - **Directory listings** - Paths explored
-- **AI reasoning** - See the AI's thinking process behind decisions
+- **AI reasoning** - See the AI's thinking process behind decisions (use `--think` for full text)
 - **Code artifacts** - Mermaid diagrams, code blocks, with syntax highlighting
 - **Natural language explanations** - AI explanations combined with code for full context
+
+### Display Options
+
+- **Default view** - Full messages with truncated thinking (200 chars) and file reads (100 chars)
+- **`--short` mode** - Truncates user and assistant messages to 300 chars for quick scanning
+- **`--think` flag** - Shows complete AI reasoning/thinking text (not truncated)
+- **`--fullread` flag** - Shows full file read content instead of previews
 
 ## Where Cursor Stores Data
 
