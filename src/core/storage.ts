@@ -593,19 +593,28 @@ function formatToolCall(toolData: { name?: string; params?: string; result?: str
   const lines: string[] = [];
   const toolName = toolData.name ?? 'unknown';
 
-  // Parse params to get file path or other details
-  let target = '';
+  // Parse params
+  let params: Record<string, unknown> = {};
   try {
-    const params = JSON.parse(toolData.params ?? '{}');
-    target = params.targetFile ?? params.targetDirectory ?? params.command ?? '';
+    params = JSON.parse(toolData.params ?? '{}') as Record<string, unknown>;
   } catch {
     // Ignore parse errors
   }
 
+  // Helper to get string param
+  const getParam = (...keys: string[]): string => {
+    for (const key of keys) {
+      const val = params[key];
+      if (typeof val === 'string' && val.trim()) return val;
+    }
+    return '';
+  };
+
   // Format based on tool type
   if (toolName === 'read_file') {
     lines.push(`[Tool: Read File]`);
-    if (target) lines.push(`File: ${target}`);
+    const file = getParam('targetFile', 'path', 'file');
+    if (file) lines.push(`File: ${file}`);
 
     // Show abbreviated content
     try {
@@ -619,52 +628,272 @@ function formatToolCall(toolData: { name?: string; params?: string; result?: str
     }
   } else if (toolName === 'list_dir') {
     lines.push(`[Tool: List Directory]`);
-    if (target) lines.push(`Directory: ${target}`);
-  } else if (toolName === 'run_terminal_command') {
+    const dir = getParam('targetDirectory', 'path', 'directory');
+    if (dir) lines.push(`Directory: ${dir}`);
+  } else if (toolName === 'grep' || toolName === 'search' || toolName === 'codebase_search') {
+    lines.push(`[Tool: ${toolName === 'grep' ? 'Grep' : 'Search'}]`);
+    const pattern = getParam('pattern', 'query', 'searchQuery', 'regex');
+    const path = getParam('path', 'directory', 'targetDirectory');
+    if (pattern) lines.push(`Pattern: ${pattern}`);
+    if (path) lines.push(`Path: ${path}`);
+  } else if (toolName === 'run_terminal_command' || toolName === 'execute_command') {
     lines.push(`[Tool: Terminal Command]`);
-    if (target) lines.push(`Command: ${target}`);
-  } else if (toolName === 'edit_file') {
-    lines.push(`[Tool: Edit File]`);
-    if (target) lines.push(`File: ${target}`);
-  } else if (toolName === 'create_file') {
-    lines.push(`[Tool: Create File]`);
-    if (target) lines.push(`File: ${target}`);
+    const cmd = getParam('command', 'cmd');
+    if (cmd) lines.push(`Command: ${cmd}`);
+  } else if (toolName === 'edit_file' || toolName === 'search_replace') {
+    lines.push(`[Tool: ${toolName === 'search_replace' ? 'Search & Replace' : 'Edit File'}]`);
+    const file = getParam('targetFile', 'path', 'file', 'filePath');
+    if (file) lines.push(`File: ${file}`);
+
+    // Show edit details
+    const oldString = getParam('oldString', 'old_string', 'search', 'searchString');
+    const newString = getParam('newString', 'new_string', 'replace', 'replaceString');
+    if (oldString || newString) {
+      if (oldString) lines.push(`Old: ${oldString.slice(0, 100)}${oldString.length > 100 ? '...' : ''}`);
+      if (newString) lines.push(`New: ${newString.slice(0, 100)}${newString.length > 100 ? '...' : ''}`);
+    }
+  } else if (toolName === 'create_file' || toolName === 'write_file') {
+    lines.push(`[Tool: ${toolName === 'create_file' ? 'Create File' : 'Write File'}]`);
+    const file = getParam('targetFile', 'path', 'file');
+    if (file) lines.push(`File: ${file}`);
+
+    // Show content preview
+    const content = getParam('content', 'fileContent', 'text');
+    if (content) {
+      const preview = content.slice(0, 200).replace(/\n/g, '\\n');
+      lines.push(`Content: ${preview}${content.length > 200 ? '...' : ''}`);
+    }
   } else {
+    // Generic tool - show all string params
     lines.push(`[Tool: ${toolName}]`);
-    if (target) lines.push(`Target: ${target}`);
+    for (const [key, val] of Object.entries(params)) {
+      if (typeof val === 'string' && val.trim()) {
+        const label = key.charAt(0).toUpperCase() + key.slice(1);
+        lines.push(`${label}: ${val.length > 100 ? val.slice(0, 100) + '...' : val}`);
+      }
+    }
   }
 
   return lines.join('\n');
 }
 
 /**
+ * Format a diff block for display
+ */
+function formatDiffBlock(diffData: {
+  chunks?: Array<{ diffString?: string }>;
+  editor?: string;
+}): string | null {
+  if (!diffData.chunks || !Array.isArray(diffData.chunks)) {
+    return null;
+  }
+
+  const lines: string[] = ['[File Edit - AI Generated]'];
+
+  for (const chunk of diffData.chunks) {
+    if (chunk.diffString && typeof chunk.diffString === 'string') {
+      // Show the full diff
+      lines.push('\n```diff');
+      lines.push(chunk.diffString);
+      lines.push('```');
+    }
+  }
+
+  return lines.length > 1 ? lines.join('\n') : null;
+}
+
+/**
+ * Format tool call data that includes result with diff
+ */
+function formatToolCallWithResult(toolData: {
+  name?: string;
+  params?: string;
+  result?: string;
+  rawArgs?: string;
+}): string | null {
+  const lines: string[] = [];
+
+  // Parse the result for diff information
+  try {
+    const result = JSON.parse(toolData.result ?? '{}');
+
+    // Check if result has diff
+    if (result.diff && typeof result.diff === 'object') {
+      const diffText = formatDiffBlock(result.diff);
+      if (diffText) {
+        lines.push(diffText);
+      }
+
+      // Add result summary if available
+      if (result.resultForModel && typeof result.resultForModel === 'string') {
+        lines.push(`\nResult: ${result.resultForModel}`);
+      }
+    }
+  } catch {
+    // Not JSON or no diff
+  }
+
+  // Also parse params to show what was requested
+  if (toolData.params || toolData.rawArgs) {
+    try {
+      const params = JSON.parse(toolData.params ?? toolData.rawArgs ?? '{}');
+
+      // For write tool, show file path
+      if (params.relativeWorkspacePath || params.file_path) {
+        const filePath = params.relativeWorkspacePath ?? params.file_path;
+        lines.unshift(`File: ${filePath}`);
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }
+
+  return lines.length > 0 ? lines.join('\n') : null;
+}
+
+/**
+ * Extract thinking/reasoning text from bubble
+ */
+function extractThinkingText(data: Record<string, unknown>): string | null {
+  const thinking = data['thinking'] as { text?: string; signature?: string } | undefined;
+  if (thinking?.text && typeof thinking.text === 'string' && thinking.text.trim()) {
+    return thinking.text;
+  }
+  return null;
+}
+
+/**
  * Extract text content from a bubble object
+ *
+ * Key insight from Cursor storage analysis:
+ * - `text` field contains the natural language explanation ("Based on my analysis...")
+ * - `codeBlocks[].content` contains code/mermaid artifacts
+ * - Both should be COMBINED, not one chosen over the other
+ *
+ * Priority for assistant messages:
+ * 1. text (main natural language) + codeBlocks (code artifacts) - COMBINED
+ * 2. thinking.text (reasoning)
+ * 3. toolFormerData.result (tool output)
+ *
+ * Priority for user messages:
+ * 1. codeBlocks (user-pasted code/content)
+ * 2. text, content, etc. (user typed message)
  */
 function extractBubbleText(data: Record<string, unknown>): string {
-  // Priority 0: Check for tool call in toolFormerData
+  const bubbleType = data['type'] as number | undefined;
+  const isAssistant = bubbleType === 2;
+
+  // Check for tool call in toolFormerData (with name = tool action)
   const toolFormerData = data['toolFormerData'] as {
     name?: string;
     params?: string;
     result?: string;
+    rawArgs?: string;
     status?: string;
   } | undefined;
 
+  // Priority 1: Check if toolFormerData has result with diff (write/edit operations)
+  if (toolFormerData?.result) {
+    const toolResult = formatToolCallWithResult(toolFormerData);
+    if (toolResult) {
+      return toolResult;
+    }
+  }
+
+  // Priority 2: Check if it's a standard tool call with name
   if (toolFormerData?.name && toolFormerData?.status === 'completed') {
     return formatToolCall(toolFormerData);
   }
 
-  // Priority 1: codeBlocks content
-  const codeBlocks = data['codeBlocks'] as Array<{ content?: string }> | undefined;
+  // Extract codeBlocks content
+  const codeBlocks = data['codeBlocks'] as Array<{ content?: string; languageId?: string }> | undefined;
+  const codeBlockParts: string[] = [];
   if (codeBlocks && Array.isArray(codeBlocks)) {
-    const parts = codeBlocks
-      .map((cb) => cb.content)
-      .filter((c): c is string => typeof c === 'string' && c.trim().length > 0);
-    if (parts.length > 0) {
-      return parts.join('\n\n');
+    for (const cb of codeBlocks) {
+      if (typeof cb.content === 'string' && cb.content.trim().length > 0) {
+        const lang = cb.languageId ?? '';
+        // Wrap code blocks in markdown fences for display
+        if (lang) {
+          codeBlockParts.push(`\`\`\`${lang}\n${cb.content}\n\`\`\``);
+        } else {
+          codeBlockParts.push(cb.content);
+        }
+      }
     }
   }
 
-  // Priority 2: common text fields
+  // For ASSISTANT messages: prioritize `text` field (natural language), combine with codeBlocks
+  if (isAssistant) {
+    const textField = data['text'];
+    if (typeof textField === 'string' && textField.trim().length > 0) {
+      // Check if text is a JSON diff block (backup check if toolFormerData didn't catch it)
+      if (textField.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(textField);
+          // Check for diff structure
+          if (parsed.diff && typeof parsed.diff === 'object') {
+            const diffText = formatDiffBlock(parsed.diff);
+            if (diffText) {
+              // Add result message if available
+              if (parsed.resultForModel) {
+                return diffText + `\n\nResult: ${parsed.resultForModel}`;
+              }
+              return diffText;
+            }
+          }
+        } catch {
+          // Not JSON, treat as regular text
+        }
+      }
+
+      // Regular text - combine with code artifacts
+      if (codeBlockParts.length > 0) {
+        return textField + '\n\n' + codeBlockParts.join('\n\n');
+      }
+      return textField;
+    }
+
+    // Fall back to thinking.text
+    const thinkingText = extractThinkingText(data);
+    if (thinkingText) {
+      if (codeBlockParts.length > 0) {
+        return `[Thinking]\n${thinkingText}\n\n` + codeBlockParts.join('\n\n');
+      }
+      return `[Thinking]\n${thinkingText}`;
+    }
+
+    // Fall back to toolFormerData.result
+    if (toolFormerData?.result) {
+      try {
+        const result = JSON.parse(toolFormerData.result);
+        if (result.contents && typeof result.contents === 'string') {
+          return result.contents;
+        }
+        if (result.content && typeof result.content === 'string') {
+          return result.content;
+        }
+        if (result.text && typeof result.text === 'string') {
+          return result.text;
+        }
+      } catch {
+        if (toolFormerData.result.length > 50 && !toolFormerData.result.startsWith('{')) {
+          return toolFormerData.result;
+        }
+      }
+    }
+
+    // Fall back to codeBlocks alone
+    if (codeBlockParts.length > 0) {
+      return codeBlockParts.join('\n\n');
+    }
+  }
+
+  // For USER messages: codeBlocks first (user-pasted content), then text fields
+  if (codeBlockParts.length > 0) {
+    return codeBlockParts.join('\n\n');
+  }
+
+  // Common text fields
   for (const key of ['text', 'content', 'finalText', 'message', 'markdown', 'textDescription']) {
     const value = data[key];
     if (typeof value === 'string' && value.trim().length > 0) {
@@ -672,7 +901,13 @@ function extractBubbleText(data: Record<string, unknown>): string {
     }
   }
 
-  // Priority 3: find longest string with markdown features
+  // Fallback: thinking.text
+  const thinkingText = extractThinkingText(data);
+  if (thinkingText) {
+    return `[Thinking]\n${thinkingText}`;
+  }
+
+  // Last resort: find longest string with markdown features
   let best = '';
   const walk = (obj: unknown): void => {
     if (typeof obj === 'object' && obj !== null) {

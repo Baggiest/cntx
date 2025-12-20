@@ -1,29 +1,156 @@
-# cursor_chat_history Development Guidelines
+# cursor-history Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2025-12-18
+## Overview
 
-## Active Technologies
+CLI tool to browse, search, and export Cursor AI chat history. Built with TypeScript, commander, better-sqlite3, and picocolors.
 
-- TypeScript 5.0+ (strict mode) + commander (CLI), better-sqlite3 (SQLite), picocolors (terminal) (001-chat-history-cli)
+## Quick Reference
 
-## Project Structure
+```bash
+# Build and run
+npm run build && node dist/cli/index.js list
 
-```text
-src/
-tests/
+# Development
+npm run dev          # Watch mode
+npm test             # Run tests
+npm run lint         # Lint code
+npm run typecheck    # Type check
 ```
 
-## Commands
+## Architecture
 
-npm test && npm run lint
+### Data Flow
+
+1. **Workspace storage** (`workspaceStorage/*/state.vscdb`)
+   - Contains session metadata with correct workspace paths
+   - User messages stored in `ItemTable` under `composer.composerData`
+
+2. **Global storage** (`globalStorage/state.vscdb`)
+   - Contains full AI responses in `cursorDiskKV` table
+   - Keys: `composerData:<id>` (metadata), `bubbleId:<composerId>:<bubbleId>` (messages)
+
+3. **Bubble extraction priority** (for assistant messages):
+   - `toolFormerData.result` → check for diff blocks (write/edit operations)
+   - `toolFormerData.name` + `status: "completed"` → standard tool calls with params
+   - `text` field → natural language explanation (check for JSON diff if starts with `{`)
+   - `codeBlocks[].content` → code/mermaid artifacts (COMBINED with text, wrapped in ```lang fences)
+   - `thinking.text` → reasoning blocks
+   - All extractions include timestamps for display
+
+### Project Structure
+
+```
+src/
+├── cli/
+│   ├── commands/          # list, show, search, export
+│   ├── formatters/        # table.ts (terminal), json.ts
+│   └── index.ts           # CLI entry, global options
+├── core/
+│   ├── storage.ts         # findWorkspaces, listSessions, getSession, extractBubbleText
+│   ├── parser.ts          # parseChatData, exportToMarkdown, exportToJson
+│   └── types.ts           # ChatSession, Message, Workspace, etc.
+└── lib/
+    ├── platform.ts        # getCursorDataPath, expandPath, contractPath
+    └── errors.ts          # CliError, SessionNotFoundError, handleError
+```
+
+## Key Implementation Details
+
+### Storage Layer (`src/core/storage.ts`)
+
+- `listSessions()` - Uses workspace storage for listing (correct paths)
+- `getSession()` - Tries global storage first (full AI responses), falls back to workspace
+- `extractBubbleText()` - Extracts text from bubble with priority order
+- `formatToolCallWithResult()` - Parses `toolFormerData.result` for diff blocks
+- `formatToolCall()` - Formats tool calls with parameters using `getParam()` helper
+- `formatDiffBlock()` - Formats diff chunks with ```diff markdown fencing
+- `getParam()` - Helper that tries multiple field name variations for tool parameters
+
+### Bubble Types
+
+- `type: 1` → user message
+- `type: 2` → assistant message
+
+### Tool Call Format
+
+Tool calls are stored in `toolFormerData`:
+```typescript
+{
+  name: "read_file" | "list_dir" | "run_terminal_command" | "write" | "edit_file" | "search_replace" | "grep" | ...
+  params: '{"targetFile": "/path/to/file"}' | '{"relativeWorkspacePath": "..."}'
+  rawArgs: '...' // alternative to params
+  result: '{"contents": "..."}' | '{"diff": {"chunks": [{"diffString": "..."}]}, "resultForModel": "..."}'
+  status: "completed"
+}
+```
+
+**Write/Edit operations** store diff in both:
+- `text` field as JSON: `{"diff":{"chunks":[{"diffString":"..."}],"editor":"EDITOR_AI"}}`
+- `toolFormerData.result` as JSON with same structure
+
+**Tool parameter field name variations** (handled by `getParam()`):
+- File paths: `targetFile`, `path`, `file`, `filePath`, `relativeWorkspacePath`
+- Search patterns: `pattern`, `query`, `searchQuery`, `regex`
+- Directories: `targetDirectory`, `path`, `directory`
+- Commands: `command`, `cmd`
+- Edit strings: `oldString`, `old_string`, `search`, `searchString`, `newString`, `new_string`, `replace`, `replaceString`
+- Content: `content`, `fileContent`, `text`
+
+### Display Formatters (`src/cli/formatters/table.ts`)
+
+- `formatSessionDetail()` - Shows full session with timestamps alongside role labels
+- `formatTime()` - Formats timestamps as HH:MM:SS
+- `formatToolCallDisplay()` - Formats tool calls parsed from `[Tool: ...]` markers
+- `formatThinkingDisplay()` - Formats thinking blocks with preview
+- Role labels with timestamps: `You: HH:MM:SS`, `Assistant: HH:MM:SS`, `Tool: HH:MM:SS`, `Thinking: HH:MM:SS`
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `list` | List sessions (--all, --ids, --workspaces, -n) |
+| `show <index>` | Show session details |
+| `search <query>` | Search across sessions (-n, --context) |
+| `export [index]` | Export to md/json (--all, -o, -f, --force) |
+
+### Global Options
+
+- `--json` - Output as JSON
+- `--data-path <path>` - Custom Cursor data path
+- `--workspace <path>` - Filter by workspace
 
 ## Code Style
 
-TypeScript 5.0+ (strict mode): Follow standard conventions
+- TypeScript strict mode
+- ESLint + Prettier
+- Prefer existing file edits over creating new files
+- Use picocolors for terminal output, not chalk
+- Handle errors with `CliError` and exit codes
 
-## Recent Changes
+## Testing
 
-- 001-chat-history-cli: Added TypeScript 5.0+ (strict mode) + commander (CLI), better-sqlite3 (SQLite), picocolors (terminal)
+```bash
+npm test              # Run all tests
+npm run test:watch    # Watch mode
+```
 
-<!-- MANUAL ADDITIONS START -->
-<!-- MANUAL ADDITIONS END -->
+## Common Tasks
+
+### Adding a new command
+
+1. Create `src/cli/commands/mycommand.ts`
+2. Export `registerMyCommand(program: Command)`
+3. Import and register in `src/cli/index.ts`
+
+### Modifying bubble extraction
+
+Edit `extractBubbleText()` in `src/core/storage.ts`. Priority matters:
+- For assistant: toolFormerData.result (diff check) → toolFormerData.name (tool call) → text (with diff check) → text + codeBlocks (combined) → thinking.text → codeBlocks alone
+- Combine text + codeBlocks, don't choose one
+- Wrap code blocks in markdown fences with language ID
+
+### Adding new output format
+
+1. Add formatter in `src/cli/formatters/`
+2. Export from `src/cli/formatters/index.ts`
+3. Use in command with `--format` option

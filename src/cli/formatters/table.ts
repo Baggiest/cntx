@@ -30,6 +30,17 @@ function formatDate(date: Date): string {
 }
 
 /**
+ * Format a timestamp for display (time only)
+ */
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+/**
  * Truncate string with ellipsis
  */
 function truncate(str: string, maxLength: number): string {
@@ -49,7 +60,7 @@ function padRight(str: string, width: number): string {
 /**
  * Format sessions list as table
  */
-export function formatSessionsTable(sessions: ChatSessionSummary[]): string {
+export function formatSessionsTable(sessions: ChatSessionSummary[], showIds = false): string {
   if (sessions.length === 0) {
     return pc.yellow('No chat sessions found.');
   }
@@ -57,26 +68,46 @@ export function formatSessionsTable(sessions: ChatSessionSummary[]): string {
   const lines: string[] = [];
 
   // Header
-  lines.push(
-    pc.bold(
-      `${padRight('#', 4)} ${padRight('Date', 12)} ${padRight('Messages', 8)} ${padRight('Workspace', 30)} Preview`
-    )
-  );
-  lines.push(pc.dim('─'.repeat(100)));
+  if (showIds) {
+    lines.push(
+      pc.bold(
+        `${padRight('#', 4)} ${padRight('Date', 12)} ${padRight('Msgs', 5)} ${padRight('Workspace', 25)} ${padRight('Composer ID', 38)} Preview`
+      )
+    );
+    lines.push(pc.dim('─'.repeat(130)));
+  } else {
+    lines.push(
+      pc.bold(
+        `${padRight('#', 4)} ${padRight('Date', 12)} ${padRight('Messages', 8)} ${padRight('Workspace', 30)} Preview`
+      )
+    );
+    lines.push(pc.dim('─'.repeat(100)));
+  }
 
   // Rows
   for (const session of sessions) {
     const idx = pc.cyan(padRight(String(session.index), 4));
     const date = padRight(formatDate(session.createdAt), 12);
-    const msgs = padRight(String(session.messageCount), 8);
-    const workspace = pc.dim(padRight(truncate(session.workspacePath, 30), 30));
-    const preview = truncate(session.preview, 40);
 
-    lines.push(`${idx} ${date} ${msgs} ${workspace} ${preview}`);
+    if (showIds) {
+      const msgs = padRight(String(session.messageCount), 5);
+      const workspace = pc.dim(padRight(truncate(session.workspacePath, 25), 25));
+      const composerId = pc.gray(padRight(session.id, 38));
+      const preview = truncate(session.preview, 30);
+      lines.push(`${idx} ${date} ${msgs} ${workspace} ${composerId} ${preview}`);
+    } else {
+      const msgs = padRight(String(session.messageCount), 8);
+      const workspace = pc.dim(padRight(truncate(session.workspacePath, 30), 30));
+      const preview = truncate(session.preview, 40);
+      lines.push(`${idx} ${date} ${msgs} ${workspace} ${preview}`);
+    }
   }
 
   lines.push('');
   lines.push(pc.dim(`Showing ${sessions.length} session(s). Use "show <#>" to view details.`));
+  if (showIds) {
+    lines.push(pc.dim(`Composer IDs can be used with external tools for export.`));
+  }
 
   return lines.join('\n');
 }
@@ -113,6 +144,24 @@ export function formatWorkspacesTable(workspaces: Workspace[]): string {
  */
 function isToolCall(content: string): boolean {
   return content.startsWith('[Tool:');
+}
+
+/**
+ * Check if content is thinking/reasoning text
+ */
+function isThinking(content: string): boolean {
+  return content.startsWith('[Thinking]');
+}
+
+/**
+ * Format thinking text with nice styling
+ */
+function formatThinkingDisplay(content: string): string {
+  const text = content.replace('[Thinking]\n', '').trim();
+  const lines: string[] = [];
+  lines.push(pc.yellow(pc.bold('💭 Thinking')));
+  lines.push(pc.dim('   ' + text.slice(0, 200) + (text.length > 200 ? '...' : '')));
+  return lines.join('\n');
 }
 
 /**
@@ -167,8 +216,12 @@ export function formatSessionDetail(session: ChatSession, workspacePath?: string
 
   // Messages
   for (const message of session.messages) {
+    // Format timestamp
+    const timestamp = pc.dim(formatTime(message.timestamp));
+
     // Check if this is a tool call
     if (isToolCall(message.content)) {
+      lines.push(`${pc.cyan(pc.bold('Tool:'))} ${timestamp}`);
       lines.push(formatToolCallDisplay(message.content));
       lines.push('');
       lines.push(pc.dim('─'.repeat(40)));
@@ -176,8 +229,20 @@ export function formatSessionDetail(session: ChatSession, workspacePath?: string
       continue;
     }
 
+    // Check if this is thinking/reasoning
+    if (isThinking(message.content)) {
+      lines.push(`${pc.magenta(pc.bold('Thinking:'))} ${timestamp}`);
+      lines.push(formatThinkingDisplay(message.content));
+      lines.push('');
+      lines.push(pc.dim('─'.repeat(40)));
+      lines.push('');
+      continue;
+    }
+
     const roleLabel =
-      message.role === 'user' ? pc.blue(pc.bold('You:')) : pc.green(pc.bold('Assistant:'));
+      message.role === 'user'
+        ? `${pc.blue(pc.bold('You:'))} ${timestamp}`
+        : `${pc.green(pc.bold('Assistant:'))} ${timestamp}`;
 
     lines.push(roleLabel);
     lines.push('');

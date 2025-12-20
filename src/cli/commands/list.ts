@@ -19,6 +19,7 @@ interface ListCommandOptions {
   limit?: string;
   all?: boolean;
   workspaces?: boolean;
+  ids?: boolean;
   json?: boolean;
   dataPath?: string;
   workspace?: string;
@@ -35,6 +36,7 @@ export function registerListCommand(program: Command): void {
     .option('-n, --limit <number>', 'Maximum sessions to show', '20')
     .option('-a, --all', 'Show all sessions (ignore limit)')
     .option('--workspaces', 'List workspaces instead of sessions')
+    .option('--ids', 'Show composer IDs (for external export tools)')
     .action(async (options: ListCommandOptions, command: Command) => {
       const globalOptions = command.parent?.opts() as {
         json?: boolean;
@@ -93,7 +95,7 @@ export function registerListCommand(program: Command): void {
         if (useJson) {
           console.log(formatSessionsJson(sessions));
         } else {
-          console.log(formatSessionsTable(sessions));
+          console.log(formatSessionsTable(sessions, options.ids ?? false));
         }
       }
     });
