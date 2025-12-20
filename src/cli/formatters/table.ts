@@ -154,6 +154,33 @@ function isThinking(content: string): boolean {
 }
 
 /**
+ * Check if content is an error message
+ */
+function isError(content: string): boolean {
+  return content.startsWith('[Error]');
+}
+
+/**
+ * Format error message with nice styling
+ */
+function formatErrorDisplay(content: string, fullError: boolean): string {
+  const text = content.replace('[Error]\n', '').trim();
+  const lines: string[] = [];
+  lines.push(pc.red(pc.bold('❌ Error')));
+
+  if (fullError) {
+    // Show full error
+    lines.push(pc.red('   ' + text));
+  } else {
+    // Show truncated error (first 300 chars)
+    const truncated = text.slice(0, 300) + (text.length > 300 ? '...' : '');
+    lines.push(pc.red('   ' + truncated));
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * Format thinking text with nice styling
  */
 function formatThinkingDisplay(content: string, fullThinking: boolean): string {
@@ -212,10 +239,10 @@ function formatToolCallDisplay(content: string, fullRead: boolean): string {
 export function formatSessionDetail(
   session: ChatSession,
   workspacePath?: string,
-  options?: { short?: boolean; fullThinking?: boolean; fullRead?: boolean }
+  options?: { short?: boolean; fullThinking?: boolean; fullRead?: boolean; fullError?: boolean }
 ): string {
   const lines: string[] = [];
-  const { short = false, fullThinking = false, fullRead = false } = options ?? {};
+  const { short = false, fullThinking = false, fullRead = false, fullError = false } = options ?? {};
 
   // Header
   lines.push(pc.bold(`Chat Session #${session.index}`));
@@ -262,6 +289,17 @@ export function formatSessionDetail(
     if (isToolCall(message.content)) {
       lines.push(`${pc.cyan(pc.bold('Tool:'))} ${timestampDisplay}`);
       lines.push(formatToolCallDisplay(message.content, fullRead));
+      lines.push('');
+      lines.push(pc.dim('─'.repeat(40)));
+      lines.push('');
+      i = j;
+      continue;
+    }
+
+    // Check if this is an error message
+    if (isError(message.content)) {
+      lines.push(`${pc.red(pc.bold('Error:'))} ${timestampDisplay}`);
+      lines.push(formatErrorDisplay(message.content, fullError));
       lines.push('');
       lines.push(pc.dim('─'.repeat(40)));
       lines.push('');

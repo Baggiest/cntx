@@ -73,8 +73,11 @@ cursor-history show 1 --think
 # Show full file read content (not truncated)
 cursor-history show 1 --fullread
 
+# Show full error messages (not truncated to 300 chars)
+cursor-history show 1 --error
+
 # Combine options
-cursor-history show 1 --short --think --fullread
+cursor-history show 1 --short --think --fullread --error
 
 # Output as JSON
 cursor-history show 1 --json
@@ -138,16 +141,18 @@ When browsing your chat history, you'll see:
   - **Search operations** - Patterns, paths, and search queries used
   - **Terminal commands** - Complete command text
   - **Directory listings** - Paths explored
+  - **Errors** - Error messages with ❌ emoji highlighting (extracted from `toolFormerData.additionalData.status`)
 - **AI reasoning** - See the AI's thinking process behind decisions (use `--think` for full text)
 - **Code artifacts** - Mermaid diagrams, code blocks, with syntax highlighting
 - **Natural language explanations** - AI explanations combined with code for full context
 
 ### Display Options
 
-- **Default view** - Full messages with truncated thinking (200 chars) and file reads (100 chars)
+- **Default view** - Full messages with truncated thinking (200 chars), file reads (100 chars), and errors (300 chars)
 - **`--short` mode** - Truncates user and assistant messages to 300 chars for quick scanning
 - **`--think` flag** - Shows complete AI reasoning/thinking text (not truncated)
 - **`--fullread` flag** - Shows full file read content instead of previews
+- **`--error` flag** - Shows full error messages instead of 300-char preview
 
 ## Where Cursor Stores Data
 

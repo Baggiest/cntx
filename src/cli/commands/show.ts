@@ -14,6 +14,7 @@ interface ShowCommandOptions {
   short?: boolean;
   think?: boolean;
   fullread?: boolean;
+  error?: boolean;
 }
 
 /**
@@ -26,6 +27,7 @@ export function registerShowCommand(program: Command): void {
     .option('-s, --short', 'Truncate user and assistant messages')
     .option('-t, --think', 'Show full thinking/reasoning text')
     .option('-f, --fullread', 'Show full file read content')
+    .option('-e, --error', 'Show full error messages (default: truncated)')
     .action(async (indexArg: string, options: ShowCommandOptions, command: Command) => {
       const globalOptions = command.parent?.opts() as { json?: boolean; dataPath?: string };
       const useJson = options.json ?? globalOptions?.json ?? false;
@@ -57,6 +59,7 @@ export function registerShowCommand(program: Command): void {
               short: options.short ?? false,
               fullThinking: options.think ?? false,
               fullRead: options.fullread ?? false,
+              fullError: options.error ?? false,
             })
           );
         }

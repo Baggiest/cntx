@@ -30,11 +30,14 @@ npm run typecheck    # Type check
    - Keys: `composerData:<id>` (metadata), `bubbleId:<composerId>:<bubbleId>` (messages)
 
 3. **Bubble extraction priority** (for assistant messages):
+   - Mark errors early: `toolFormerData.additionalData.status === 'error'` but continue extraction
    - `toolFormerData.result` → check for diff blocks (write/edit operations)
    - `toolFormerData.name` + `status: "completed"` → standard tool calls with params
    - `text` field → natural language explanation (check for JSON diff if starts with `{`)
    - `codeBlocks[].content` → code/mermaid artifacts (COMBINED with text, wrapped in ```lang fences)
-   - `thinking.text` → reasoning blocks
+   - `thinking.text` → reasoning blocks (marked as `[Thinking]`)
+   - **Last resort**: Recursive walk through all fields to find longest string with markdown features (catches error messages)
+   - If marked as error, prefix result with `[Error]` marker
    - All extractions include timestamps for display
 
 ### Project Structure
@@ -60,11 +63,18 @@ src/
 
 - `listSessions()` - Uses workspace storage for listing (correct paths)
 - `getSession()` - Tries global storage first (full AI responses), falls back to workspace
-- `extractBubbleText()` - Extracts text from bubble with priority order
+- `extractBubbleText()` - Extracts text from bubble with priority order (all based on DB fields, not pattern matching)
+- `extractThinkingText()` - Extracts from `data.thinking.text` DB field
 - `formatToolCallWithResult()` - Parses `toolFormerData.result` for diff blocks
 - `formatToolCall()` - Formats tool calls with parameters using `getParam()` helper
 - `formatDiffBlock()` - Formats diff chunks with ```diff markdown fencing
 - `getParam()` - Helper that tries multiple field name variations for tool parameters
+
+**All special message detection is DB-field based:**
+- Errors: `toolFormerData.additionalData.status === 'error'`
+- Tool calls: `toolFormerData.name` + `toolFormerData.status`
+- Thinking: `data.thinking.text`
+- Code blocks: `data.codeBlocks` array
 
 ### Bubble Types
 
@@ -103,18 +113,26 @@ Tool calls are stored in `toolFormerData`:
   - `options.short` - Truncates user/assistant messages to 300 chars
   - `options.fullThinking` - Shows full thinking text (not truncated to 200 chars)
   - `options.fullRead` - Shows full file read content (not truncated to 100 chars)
+  - `options.fullError` - Shows full error messages (not truncated to 300 chars)
 - `formatTime()` - Formats timestamps as HH:MM:SS
 - `formatToolCallDisplay(content, fullRead)` - Formats tool calls with optional full read content
 - `formatThinkingDisplay(content, fullThinking)` - Formats thinking blocks with optional full text
-- Role labels with timestamps: `You: HH:MM:SS`, `Assistant: HH:MM:SS`, `Tool: HH:MM:SS`, `Thinking: HH:MM:SS`
+- `formatErrorDisplay(content, fullError)` - Formats error messages with red text and ❌ emoji
+- Role labels with timestamps: `You: HH:MM:SS`, `Assistant: HH:MM:SS`, `Tool: HH:MM:SS`, `Thinking: HH:MM:SS`, `Error: HH:MM:SS`
 - For duplicates: `You: 02:48:01 PM, 02:48:04 PM, 02:48:54 PM (×3)` (yellow highlight on repeat count)
+
+**Display layer detects markers from storage layer:**
+- `isToolCall()` - checks for `[Tool:` marker
+- `isError()` - checks for `[Error]` marker
+- `isThinking()` - checks for `[Thinking]` marker
+- All markers are set by storage layer based on DB fields
 
 ## CLI Commands
 
 | Command | Description |
 |---------|-------------|
 | `list` | List sessions (--all, --ids, --workspaces, -n) |
-| `show <index>` | Show session details (-s/--short, -t/--think, -f/--fullread) |
+| `show <index>` | Show session details (-s/--short, -t/--think, -f/--fullread, -e/--error) |
 | `search <query>` | Search across sessions (-n, --context) |
 | `export [index]` | Export to md/json (--all, -o, -f, --force) |
 
@@ -123,6 +141,7 @@ Tool calls are stored in `toolFormerData`:
 - `-s, --short` - Truncate user and assistant messages to 300 characters
 - `-t, --think` - Show full AI thinking/reasoning text (default: 200 char preview)
 - `-f, --fullread` - Show full file read content (default: 100 char preview)
+- `-e, --error` - Show full error messages (default: 300 char preview)
 
 ### Global Options
 

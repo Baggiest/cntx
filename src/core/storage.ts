@@ -790,7 +790,13 @@ function extractBubbleText(data: Record<string, unknown>): string {
     result?: string;
     rawArgs?: string;
     status?: string;
+    additionalData?: {
+      status?: string;
+    };
   } | undefined;
+
+  // Check if it's an error - but don't return yet, mark it and continue extraction
+  const isError = toolFormerData?.additionalData?.status === 'error';
 
   // Priority 1: Check if toolFormerData has result with diff (write/edit operations)
   if (toolFormerData?.result) {
@@ -923,6 +929,11 @@ function extractBubbleText(data: Record<string, unknown>): string {
     }
   };
   walk(data);
+
+  // If this was marked as an error, prefix with [Error] marker
+  if (isError && best) {
+    return `[Error]\n${best}`;
+  }
 
   return best;
 }
