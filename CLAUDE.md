@@ -99,6 +99,7 @@ Tool calls are stored in `toolFormerData`:
 ### Display Formatters (`src/cli/formatters/table.ts`)
 
 - `formatSessionDetail(session, workspacePath, options)` - Shows full session with display options
+  - **Message folding**: Consecutive duplicate messages (same role and content) are folded into a single display with multiple timestamps and a repeat count indicator (×N)
   - `options.short` - Truncates user/assistant messages to 300 chars
   - `options.fullThinking` - Shows full thinking text (not truncated to 200 chars)
   - `options.fullRead` - Shows full file read content (not truncated to 100 chars)
@@ -106,6 +107,7 @@ Tool calls are stored in `toolFormerData`:
 - `formatToolCallDisplay(content, fullRead)` - Formats tool calls with optional full read content
 - `formatThinkingDisplay(content, fullThinking)` - Formats thinking blocks with optional full text
 - Role labels with timestamps: `You: HH:MM:SS`, `Assistant: HH:MM:SS`, `Tool: HH:MM:SS`, `Thinking: HH:MM:SS`
+- For duplicates: `You: 02:48:01 PM, 02:48:04 PM, 02:48:54 PM (×3)` (yellow highlight on repeat count)
 
 ## CLI Commands
 

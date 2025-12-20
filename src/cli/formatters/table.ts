@@ -234,35 +234,56 @@ export function formatSessionDetail(
   lines.push(pc.dim('─'.repeat(60)));
   lines.push('');
 
-  // Messages
-  for (const message of session.messages) {
-    // Format timestamp
-    const timestamp = pc.dim(formatTime(message.timestamp));
+  // Messages - with consecutive duplicate folding
+  let i = 0;
+  while (i < session.messages.length) {
+    const message = session.messages[i]!;
+    const timestamps: Date[] = [message.timestamp];
+
+    // Check for consecutive duplicates (same role and content)
+    let j = i + 1;
+    while (j < session.messages.length) {
+      const nextMsg = session.messages[j]!;
+      if (nextMsg.role === message.role && nextMsg.content === message.content) {
+        timestamps.push(nextMsg.timestamp);
+        j++;
+      } else {
+        break;
+      }
+    }
+
+    // Format timestamps
+    const timestampDisplay =
+      timestamps.length > 1
+        ? pc.dim(`${timestamps.map((t) => formatTime(t)).join(', ')} `) + pc.yellow(`(×${timestamps.length})`)
+        : pc.dim(formatTime(message.timestamp));
 
     // Check if this is a tool call
     if (isToolCall(message.content)) {
-      lines.push(`${pc.cyan(pc.bold('Tool:'))} ${timestamp}`);
+      lines.push(`${pc.cyan(pc.bold('Tool:'))} ${timestampDisplay}`);
       lines.push(formatToolCallDisplay(message.content, fullRead));
       lines.push('');
       lines.push(pc.dim('─'.repeat(40)));
       lines.push('');
+      i = j;
       continue;
     }
 
     // Check if this is thinking/reasoning
     if (isThinking(message.content)) {
-      lines.push(`${pc.magenta(pc.bold('Thinking:'))} ${timestamp}`);
+      lines.push(`${pc.magenta(pc.bold('Thinking:'))} ${timestampDisplay}`);
       lines.push(formatThinkingDisplay(message.content, fullThinking));
       lines.push('');
       lines.push(pc.dim('─'.repeat(40)));
       lines.push('');
+      i = j;
       continue;
     }
 
     const roleLabel =
       message.role === 'user'
-        ? `${pc.blue(pc.bold('You:'))} ${timestamp}`
-        : `${pc.green(pc.bold('Assistant:'))} ${timestamp}`;
+        ? `${pc.blue(pc.bold('You:'))} ${timestampDisplay}`
+        : `${pc.green(pc.bold('Assistant:'))} ${timestampDisplay}`;
 
     lines.push(roleLabel);
     lines.push('');
@@ -278,6 +299,8 @@ export function formatSessionDetail(
     lines.push('');
     lines.push(pc.dim('─'.repeat(40)));
     lines.push('');
+
+    i = j;
   }
 
   return lines.join('\n');

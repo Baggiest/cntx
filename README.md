@@ -130,6 +130,7 @@ cursor-history --workspace /path/to/project list
 When browsing your chat history, you'll see:
 
 - **Complete conversations** - All messages exchanged with Cursor AI
+- **Duplicate message folding** - Consecutive identical messages are folded into one display with multiple timestamps and repeat count (e.g., "02:48:01 PM, 02:48:04 PM, 02:48:54 PM (×3)")
 - **Timestamps** - Exact time each message was sent (HH:MM:SS format)
 - **AI tool actions** - Detailed view of what Cursor AI did:
   - **File edits/writes** - Full diff display with syntax highlighting showing exactly what changed
