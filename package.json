@@ -30,12 +30,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/S2thend/cursor_chat_history.git"
+    "url": "git+https://github.com/S2thend/cursor-history.git"
   },
   "bugs": {
-    "url": "https://github.com/S2thend/cursor_chat_history/issues"
+    "url": "https://github.com/S2thend/cursor-history/issues"
   },
-  "homepage": "https://github.com/S2thend/cursor_chat_history#readme",
+  "homepage": "https://github.com/S2thend/cursor-history#readme",
   "files": [
     "dist",
     "README.md",
