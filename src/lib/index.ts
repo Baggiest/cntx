@@ -216,9 +216,89 @@ export function getSession(index: number, config?: LibraryConfig): Session {
  * // Search within specific workspace
  * const results = searchSessions('bug', { workspace: '/path/to/project' });
  */
-export function searchSessions(_query: string, _config?: LibraryConfig): SearchResult[] {
-  // Implementation in Phase 5 (T032)
-  throw new Error('Not implemented yet');
+export function searchSessions(query: string, config?: LibraryConfig): SearchResult[] {
+  try {
+    const resolved = mergeWithDefaults(config);
+
+    // Search using core storage layer
+    const coreResults = storage.searchSessions(
+      query,
+      {
+        limit: resolved.limit === Number.MAX_SAFE_INTEGER ? 0 : resolved.limit,
+        contextChars: resolved.context * 80, // Rough estimate: 1 line = 80 chars
+        workspacePath: resolved.workspace,
+      },
+      resolved.dataPath
+    );
+
+    // Convert core results to library format
+    return coreResults.map((coreResult) => {
+      // Get full session for reference
+      const fullSession = storage.getSession(coreResult.index, resolved.dataPath);
+      if (!fullSession) {
+        throw new DatabaseNotFoundError(`Session ${coreResult.index} not found`);
+      }
+
+      // Find the first match to get offset and context
+      const firstSnippet = coreResult.snippets[0];
+      const match = firstSnippet?.text ?? '';
+      const offset = firstSnippet?.matchPositions[0]?.[0] ?? 0;
+
+      // Extract context lines (split by newlines)
+      const lines = match.split('\n');
+      const contextBefore: string[] = [];
+      const contextAfter: string[] = [];
+
+      // Find the line containing the match
+      let matchLineIndex = 0;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line && line.includes(query)) {
+          matchLineIndex = i;
+          break;
+        }
+      }
+
+      // Get context lines before and after
+      if (resolved.context > 0) {
+        const start = Math.max(0, matchLineIndex - resolved.context);
+        const end = Math.min(lines.length, matchLineIndex + resolved.context + 1);
+
+        for (let i = start; i < matchLineIndex; i++) {
+          const line = lines[i];
+          if (line) contextBefore.push(line);
+        }
+        for (let i = matchLineIndex + 1; i < end; i++) {
+          const line = lines[i];
+          if (line) contextAfter.push(line);
+        }
+      }
+
+      return {
+        session: convertToLibrarySession(fullSession),
+        match: lines[matchLineIndex] ?? match,
+        messageIndex: 0, // Would need to track which message contains the match
+        offset,
+        contextBefore: contextBefore.length > 0 ? contextBefore : undefined,
+        contextAfter: contextAfter.length > 0 ? contextAfter : undefined,
+      };
+    });
+  } catch (err) {
+    // Check for SQLite BUSY error (database locked)
+    if (err instanceof Error && err.message.includes('SQLITE_BUSY')) {
+      throw new DatabaseLockedError(config?.dataPath ?? 'default path');
+    }
+    // Check for file not found errors
+    if (err instanceof Error && (err.message.includes('ENOENT') || err.message.includes('no such file'))) {
+      throw new DatabaseNotFoundError(config?.dataPath ?? 'default path');
+    }
+    // Re-throw library errors as-is
+    if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError) {
+      throw err;
+    }
+    // Wrap other errors
+    throw new Error(`Failed to search sessions: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /**
@@ -235,9 +315,24 @@ export function searchSessions(_query: string, _config?: LibraryConfig): SearchR
  * const json = exportSessionToJson(0);
  * fs.writeFileSync('session.json', json);
  */
-export function exportSessionToJson(_index: number, _config?: LibraryConfig): string {
-  // Implementation in Phase 6 (T040)
-  throw new Error('Not implemented yet');
+export function exportSessionToJson(index: number, config?: LibraryConfig): string {
+  try {
+    const resolved = mergeWithDefaults(config);
+    const coreIndex = index + 1; // Convert to 1-based indexing
+
+    const coreSession = storage.getSession(coreIndex, resolved.dataPath);
+    if (!coreSession) {
+      throw new DatabaseNotFoundError(`Session at index ${index} not found`);
+    }
+
+    const { exportToJson } = require('../core/parser.js');
+    return exportToJson(coreSession, coreSession.workspacePath);
+  } catch (err) {
+    if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError) {
+      throw err;
+    }
+    throw new Error(`Failed to export session to JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /**
@@ -254,9 +349,24 @@ export function exportSessionToJson(_index: number, _config?: LibraryConfig): st
  * const markdown = exportSessionToMarkdown(0);
  * fs.writeFileSync('session.md', markdown);
  */
-export function exportSessionToMarkdown(_index: number, _config?: LibraryConfig): string {
-  // Implementation in Phase 6 (T041)
-  throw new Error('Not implemented yet');
+export function exportSessionToMarkdown(index: number, config?: LibraryConfig): string {
+  try {
+    const resolved = mergeWithDefaults(config);
+    const coreIndex = index + 1; // Convert to 1-based indexing
+
+    const coreSession = storage.getSession(coreIndex, resolved.dataPath);
+    if (!coreSession) {
+      throw new DatabaseNotFoundError(`Session at index ${index} not found`);
+    }
+
+    const { exportToMarkdown } = require('../core/parser.js');
+    return exportToMarkdown(coreSession, coreSession.workspacePath);
+  } catch (err) {
+    if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError) {
+      throw err;
+    }
+    throw new Error(`Failed to export session to Markdown: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /**
@@ -275,9 +385,35 @@ export function exportSessionToMarkdown(_index: number, _config?: LibraryConfig)
  * // Export sessions from specific workspace
  * const json = exportAllSessionsToJson({ workspace: '/path/to/project' });
  */
-export function exportAllSessionsToJson(_config?: LibraryConfig): string {
-  // Implementation in Phase 6 (T042)
-  throw new Error('Not implemented yet');
+export function exportAllSessionsToJson(config?: LibraryConfig): string {
+  try {
+    const resolved = mergeWithDefaults(config);
+
+    // Get all sessions
+    const coreSessions = storage.listSessions(
+      {
+        limit: -1,
+        all: true,
+        workspacePath: resolved.workspace,
+      },
+      resolved.dataPath
+    );
+
+    // Export each session
+    const { exportToJson } = require('../core/parser.js');
+    const exportedSessions = coreSessions.map((summary) => {
+      const session = storage.getSession(summary.index, resolved.dataPath);
+      if (!session) return null;
+      return JSON.parse(exportToJson(session, session.workspacePath));
+    }).filter((s): s is Record<string, unknown> => s !== null);
+
+    return JSON.stringify(exportedSessions, null, 2);
+  } catch (err) {
+    if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError) {
+      throw err;
+    }
+    throw new Error(`Failed to export all sessions to JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /**
@@ -292,7 +428,37 @@ export function exportAllSessionsToJson(_config?: LibraryConfig): string {
  * const markdown = exportAllSessionsToMarkdown();
  * fs.writeFileSync('all-sessions.md', markdown);
  */
-export function exportAllSessionsToMarkdown(_config?: LibraryConfig): string {
-  // Implementation in Phase 6 (T043)
-  throw new Error('Not implemented yet');
+export function exportAllSessionsToMarkdown(config?: LibraryConfig): string {
+  try {
+    const resolved = mergeWithDefaults(config);
+
+    // Get all sessions
+    const coreSessions = storage.listSessions(
+      {
+        limit: -1,
+        all: true,
+        workspacePath: resolved.workspace,
+      },
+      resolved.dataPath
+    );
+
+    // Export each session
+    const { exportToMarkdown } = require('../core/parser.js');
+    const parts: string[] = [];
+
+    for (const summary of coreSessions) {
+      const session = storage.getSession(summary.index, resolved.dataPath);
+      if (!session) continue;
+
+      parts.push(exportToMarkdown(session, session.workspacePath));
+      parts.push('\n\n---\n\n'); // Separator between sessions
+    }
+
+    return parts.join('');
+  } catch (err) {
+    if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError) {
+      throw err;
+    }
+    throw new Error(`Failed to export all sessions to Markdown: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
