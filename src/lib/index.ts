@@ -34,6 +34,7 @@ import type { LibraryConfig, PaginatedResult, Session, SearchResult } from './ty
 import { mergeWithDefaults } from './config.js';
 import { DatabaseLockedError, DatabaseNotFoundError } from './errors.js';
 import * as storage from '../core/storage.js';
+import { exportToJson, exportToMarkdown } from '../core/parser.js';
 import type { ChatSession as CoreSession } from '../core/types.js';
 
 /**
@@ -325,7 +326,6 @@ export function exportSessionToJson(index: number, config?: LibraryConfig): stri
       throw new DatabaseNotFoundError(`Session at index ${index} not found`);
     }
 
-    const { exportToJson } = require('../core/parser.js');
     return exportToJson(coreSession, coreSession.workspacePath);
   } catch (err) {
     if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError) {
@@ -359,7 +359,6 @@ export function exportSessionToMarkdown(index: number, config?: LibraryConfig): 
       throw new DatabaseNotFoundError(`Session at index ${index} not found`);
     }
 
-    const { exportToMarkdown } = require('../core/parser.js');
     return exportToMarkdown(coreSession, coreSession.workspacePath);
   } catch (err) {
     if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError) {
@@ -400,7 +399,6 @@ export function exportAllSessionsToJson(config?: LibraryConfig): string {
     );
 
     // Export each session
-    const { exportToJson } = require('../core/parser.js');
     const exportedSessions = coreSessions.map((summary) => {
       const session = storage.getSession(summary.index, resolved.dataPath);
       if (!session) return null;
@@ -443,7 +441,6 @@ export function exportAllSessionsToMarkdown(config?: LibraryConfig): string {
     );
 
     // Export each session
-    const { exportToMarkdown } = require('../core/parser.js');
     const parts: string[] = [];
 
     for (const summary of coreSessions) {

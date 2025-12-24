@@ -8,7 +8,7 @@
 import { realpathSync } from 'node:fs';
 import { resolve, normalize, isAbsolute } from 'node:path';
 import type { LibraryConfig } from './types.js';
-import { InvalidConfigError } from './errors.js';
+import { InvalidConfigError, DatabaseNotFoundError } from './errors.js';
 import { getCursorDataPath } from '../lib/platform.js';
 
 /**
@@ -95,9 +95,7 @@ export function resolveDatabasePath(configPath?: string): string {
   try {
     // Resolve symlinks and verify path exists
     return realpathSync(resolved);
-  } catch (err) {
-    // Import DatabaseNotFoundError here to avoid circular dependencies
-    const { DatabaseNotFoundError } = require('./errors.js');
+  } catch {
     throw new DatabaseNotFoundError(resolved);
   }
 }
