@@ -14,7 +14,8 @@ import type {
   SearchOptions,
   SearchResult,
 } from './types.js';
-import { getCursorDataPath, contractPath } from '../lib/platform.js';
+import { getCursorDataPath, contractPath, normalizePath, pathsEqual } from '../lib/platform.js';
+import { SessionNotFoundError } from '../lib/errors.js';
 import { parseChatData, getSearchSnippets, type CursorChatBundle } from './parser.js';
 
 /**
@@ -49,10 +50,18 @@ function getGlobalStoragePath(): string {
 }
 
 /**
- * Open a SQLite database file
+ * Open a SQLite database file (read-only)
  */
 export function openDatabase(dbPath: string): Database.Database {
   return new Database(dbPath, { readonly: true });
+}
+
+/**
+ * Open a SQLite database file for read-write operations
+ * IMPORTANT: Only use for migration operations. Requires Cursor to be closed.
+ */
+export function openDatabaseReadWrite(dbPath: string): Database.Database {
+  return new Database(dbPath, { readonly: false });
 }
 
 /**
@@ -1022,3 +1031,210 @@ function extractBubbleText(data: Record<string, unknown>): string {
 
   return best;
 }
+
+// ============================================================================
+// Migration Support Functions
+// ============================================================================
+
+/**
+ * Find the workspace that contains a specific session by ID
+ * Returns workspace info including the dbPath for read-write access
+ */
+export function findWorkspaceForSession(
+  sessionId: string,
+  customDataPath?: string
+): { workspace: Workspace; dbPath: string } | null {
+  const workspaces = findWorkspaces(customDataPath);
+
+  for (const workspace of workspaces) {
+    try {
+      const db = openDatabase(workspace.dbPath);
+      const result = getChatDataFromDb(db);
+      db.close();
+
+      if (!result) continue;
+
+      // Parse the composerData - could be new format with allComposers or legacy format
+      const parsed = JSON.parse(result.data) as { allComposers?: Array<{ composerId?: string }> } | Array<{ composerId?: string }>;
+
+      // Handle new format with allComposers array
+      let composers: Array<{ composerId?: string }>;
+      if ('allComposers' in parsed && Array.isArray(parsed.allComposers)) {
+        composers = parsed.allComposers;
+      } else if (Array.isArray(parsed)) {
+        composers = parsed;
+      } else {
+        continue;
+      }
+
+      const found = composers.some((session) => session.composerId === sessionId);
+
+      if (found) {
+        return { workspace, dbPath: workspace.dbPath };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Find a workspace by its path (exact match)
+ * Returns workspace info including the dbPath
+ */
+export function findWorkspaceByPath(
+  workspacePath: string,
+  customDataPath?: string
+): { workspace: Workspace; dbPath: string } | null {
+  const workspaces = findWorkspaces(customDataPath);
+
+  // Normalize path for comparison
+  const normalizedPath = normalizePath(workspacePath);
+
+  for (const workspace of workspaces) {
+    if (pathsEqual(workspace.path, normalizedPath)) {
+      return { workspace, dbPath: workspace.dbPath };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Result from getComposerData containing both raw data and extracted composers
+ */
+export interface ComposerDataResult {
+  /** The composers array (from allComposers or direct array) */
+  composers: Array<{ composerId?: string; [key: string]: unknown }>;
+  /** The full raw data object (for preserving structure on update) */
+  rawData: unknown;
+  /** Whether this uses the new allComposers format */
+  isNewFormat: boolean;
+}
+
+/**
+ * Get the composer data from a workspace database
+ * Handles both new format (with allComposers) and legacy format (direct array)
+ */
+export function getComposerData(db: Database.Database): ComposerDataResult | null {
+  try {
+    const row = db.prepare('SELECT value FROM ItemTable WHERE key = ?').get('composer.composerData') as
+      | { value: string }
+      | undefined;
+
+    if (!row?.value) {
+      return null;
+    }
+
+    const rawData = JSON.parse(row.value) as unknown;
+
+    // Check if new format with allComposers
+    if (rawData && typeof rawData === 'object' && 'allComposers' in rawData) {
+      const data = rawData as { allComposers: Array<{ composerId?: string; [key: string]: unknown }> };
+      return {
+        composers: data.allComposers ?? [],
+        rawData,
+        isNewFormat: true,
+      };
+    }
+
+    // Legacy format - direct array
+    if (Array.isArray(rawData)) {
+      return {
+        composers: rawData as Array<{ composerId?: string; [key: string]: unknown }>,
+        rawData,
+        isNewFormat: false,
+      };
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Update the composer data in a workspace database
+ * Preserves the original structure (allComposers wrapper or direct array)
+ */
+export function updateComposerData(
+  db: Database.Database,
+  composers: Array<{ composerId?: string; [key: string]: unknown }>,
+  isNewFormat: boolean,
+  originalRawData?: unknown
+): void {
+  let dataToWrite: unknown;
+
+  if (isNewFormat) {
+    // Preserve the original structure, just update allComposers
+    if (originalRawData && typeof originalRawData === 'object') {
+      dataToWrite = { ...originalRawData as object, allComposers: composers };
+    } else {
+      dataToWrite = { allComposers: composers };
+    }
+  } else {
+    // Legacy format - direct array
+    dataToWrite = composers;
+  }
+
+  const jsonValue = JSON.stringify(dataToWrite);
+  db.prepare('UPDATE ItemTable SET value = ? WHERE key = ?').run(jsonValue, 'composer.composerData');
+}
+
+/**
+ * Resolve session identifiers (index or ID) to actual session IDs
+ * Supports: single index (number), single ID (string), comma-separated, or array
+ *
+ * @param input - Session identifier(s): number, string, or array
+ * @param customDataPath - Optional custom Cursor data path
+ * @returns Array of resolved session IDs
+ * @throws SessionNotFoundError if any identifier cannot be resolved
+ */
+export function resolveSessionIdentifiers(
+  input: string | number | (string | number)[],
+  customDataPath?: string
+): string[] {
+
+  // Normalize input to array
+  let identifiers: (string | number)[];
+
+  if (Array.isArray(input)) {
+    identifiers = input;
+  } else if (typeof input === 'string' && input.includes(',')) {
+    // Comma-separated string
+    identifiers = input.split(',').map((s) => s.trim());
+  } else {
+    identifiers = [input];
+  }
+
+  // Get all sessions for lookup
+  const summaries = listSessions({ limit: 0, all: true }, customDataPath);
+
+  const resolvedIds: string[] = [];
+
+  for (const identifier of identifiers) {
+    let sessionId: string | undefined;
+
+    if (typeof identifier === 'number' || /^\d+$/.test(String(identifier))) {
+      // It's an index (1-based)
+      const index = typeof identifier === 'number' ? identifier : parseInt(String(identifier), 10);
+      const session = summaries.find((s) => s.index === index);
+      sessionId = session?.id;
+    } else {
+      // It's a session ID (UUID-like)
+      const session = summaries.find((s) => s.id === String(identifier));
+      sessionId = session?.id;
+    }
+
+    if (!sessionId) {
+      throw new SessionNotFoundError(identifier);
+    }
+
+    resolvedIds.push(sessionId);
+  }
+
+  return resolvedIds;
+}
+

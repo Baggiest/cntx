@@ -14,6 +14,11 @@ export type {
   SearchResult,
   LibraryConfig,
   PaginatedResult,
+  MigrationMode,
+  MigrateSessionConfig,
+  MigrateWorkspaceConfig,
+  SessionMigrationResult,
+  WorkspaceMigrationResult,
 } from './types.js';
 
 // Export error classes (will be created in Phase 2)
@@ -21,20 +26,32 @@ export {
   DatabaseLockedError,
   DatabaseNotFoundError,
   InvalidConfigError,
+  SessionNotFoundError,
+  WorkspaceNotFoundError,
+  SameWorkspaceError,
+  NoSessionsFoundError,
+  DestinationHasSessionsError,
   isDatabaseLockedError,
   isDatabaseNotFoundError,
   isInvalidConfigError,
+  isSessionNotFoundError,
+  isWorkspaceNotFoundError,
+  isSameWorkspaceError,
+  isNoSessionsFoundError,
+  isDestinationHasSessionsError,
 } from './errors.js';
 
 // Export utility functions
 export { getDefaultDataPath } from './utils.js';
 
 // API Functions (to be implemented in Phase 3+)
-import type { LibraryConfig, PaginatedResult, Session, SearchResult } from './types.js';
+import type { LibraryConfig, PaginatedResult, Session, SearchResult, MigrateSessionConfig, MigrateWorkspaceConfig, SessionMigrationResult, WorkspaceMigrationResult } from './types.js';
 import { mergeWithDefaults } from './config.js';
 import { DatabaseLockedError, DatabaseNotFoundError } from './errors.js';
 import * as storage from '../core/storage.js';
+import * as migrate from '../core/migrate.js';
 import { exportToJson, exportToMarkdown } from '../core/parser.js';
+import { expandPath } from './platform.js';
 import type { ChatSession as CoreSession } from '../core/types.js';
 
 /**
@@ -458,4 +475,116 @@ export function exportAllSessionsToMarkdown(config?: LibraryConfig): string {
     }
     throw new Error(`Failed to export all sessions to Markdown: ${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+// ============================================================================
+// Migration Functions
+// ============================================================================
+
+/**
+ * Migrate one or more sessions to a different workspace.
+ *
+ * This is the primary migration function for session-level operations.
+ * Supports moving (removing from source) or copying (keeping source intact).
+ *
+ * @param config - Migration configuration
+ * @returns Array of results for each session migrated
+ * @throws {SessionNotFoundError} If a session cannot be found
+ * @throws {WorkspaceNotFoundError} If destination workspace doesn't exist
+ * @throws {SameWorkspaceError} If source and destination are the same
+ * @throws {DatabaseLockedError} If database is locked by Cursor
+ *
+ * @example
+ * // Move a single session by index
+ * const results = migrateSession({
+ *   sessions: 3,
+ *   destination: '/path/to/new/project'
+ * });
+ *
+ * @example
+ * // Copy multiple sessions
+ * const results = migrateSession({
+ *   sessions: [1, 3, 5],
+ *   destination: '/path/to/project',
+ *   mode: 'copy'
+ * });
+ *
+ * @example
+ * // Dry run to preview what would happen
+ * const results = migrateSession({
+ *   sessions: '1,3,5',
+ *   destination: '/path/to/project',
+ *   dryRun: true
+ * });
+ */
+export function migrateSession(config: MigrateSessionConfig): SessionMigrationResult[] {
+  // Resolve session identifiers to IDs
+  const sessionIds = storage.resolveSessionIdentifiers(config.sessions, config.dataPath);
+
+  // Expand ~ in destination path
+  const destination = expandPath(config.destination);
+
+  // Call core migration function
+  return migrate.migrateSessions({
+    sessionIds,
+    destination,
+    mode: config.mode ?? 'move',
+    dryRun: config.dryRun ?? false,
+    force: config.force ?? false,
+    dataPath: config.dataPath,
+  });
+}
+
+/**
+ * Migrate all sessions from one workspace to another.
+ *
+ * This is a convenience function for workspace-level migration.
+ * Uses migrateSession internally for each session in the source workspace.
+ *
+ * @param config - Workspace migration configuration
+ * @returns Aggregate result with per-session details
+ * @throws {WorkspaceNotFoundError} If source or destination workspace doesn't exist
+ * @throws {SameWorkspaceError} If source and destination are the same
+ * @throws {NoSessionsFoundError} If source workspace has no sessions
+ * @throws {DestinationHasSessionsError} If destination has sessions and force not set
+ * @throws {DatabaseLockedError} If database is locked by Cursor
+ *
+ * @example
+ * // Move all sessions from old to new project
+ * const result = migrateWorkspace({
+ *   source: '/old/project',
+ *   destination: '/new/project'
+ * });
+ * console.log(`Migrated ${result.successCount} sessions`);
+ *
+ * @example
+ * // Create backup copy of all sessions
+ * const result = migrateWorkspace({
+ *   source: '/project',
+ *   destination: '/backup/project',
+ *   mode: 'copy'
+ * });
+ *
+ * @example
+ * // Force merge with existing destination sessions
+ * const result = migrateWorkspace({
+ *   source: '/old/project',
+ *   destination: '/existing/project',
+ *   force: true
+ * });
+ */
+export function migrateWorkspace(config: MigrateWorkspaceConfig): WorkspaceMigrationResult {
+  // Expand ~ in paths
+  const source = expandPath(config.source);
+  const destination = expandPath(config.destination);
+
+  // Call core migration function
+  return migrate.migrateWorkspace({
+    source,
+    destination,
+    mode: config.mode ?? 'move',
+    dryRun: config.dryRun ?? false,
+    force: config.force ?? false,
+    dataPath: config.dataPath,
+  });
 }

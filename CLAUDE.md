@@ -188,6 +188,8 @@ Tool calls are stored in `toolFormerData`:
 | `exportSessionToMarkdown(index, config?)` | Export single session to Markdown string |
 | `exportAllSessionsToJson(config?)` | Export all sessions to JSON array string |
 | `exportAllSessionsToMarkdown(config?)` | Export all sessions to Markdown string |
+| `migrateSession(config)` | Move/copy sessions to another workspace |
+| `migrateWorkspace(config)` | Move/copy all sessions between workspaces |
 | `getDefaultDataPath()` | Get platform-specific Cursor data path |
 
 ### Configuration (`LibraryConfig`)
@@ -233,6 +235,8 @@ try {
 | `show <index>` | Show session details (-s/--short, -t/--think, -f/--fullread, -e/--error) |
 | `search <query>` | Search across sessions (-n, --context) |
 | `export [index]` | Export to md/json (--all, -o, -f, --force) |
+| `migrate-session <session> <dest>` | Move/copy session(s) to workspace (--copy, --dry-run, -f) |
+| `migrate <source> <dest>` | Move/copy all sessions between workspaces (--copy, --dry-run, -f) |
 
 ### Show Command Options
 
@@ -288,6 +292,7 @@ Edit `extractBubbleText()` in `src/core/storage.ts`. Priority matters:
 - better-sqlite3 for SQLite database access (read-only)
 - commander + picocolors for CLI (not used in library)
 - Dual ESM/CommonJS module support
+- TypeScript 5.9+ (strict mode enabled) + better-sqlite3, commander, picocolors, node:fs (for workspace.json writes) (003-migrate-workspace)
 
 ## Recent Changes
 - 002-library-api: Added library API for programmatic access

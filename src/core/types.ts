@@ -151,3 +151,94 @@ export interface ExportOptions {
   outputPath?: string;
   force: boolean;
 }
+
+// ============================================================================
+// Migration Types
+// ============================================================================
+
+/**
+ * Migration mode: move removes from source, copy keeps source intact
+ */
+export type MigrationMode = 'move' | 'copy';
+
+/**
+ * Options for migrating one or more sessions
+ */
+export interface MigrateSessionOptions {
+  /** Session ID(s) to migrate (resolved from index or UUID) */
+  sessionIds: string[];
+  /** Destination workspace path */
+  destination: string;
+  /** Migration mode: 'move' (default) or 'copy' */
+  mode: MigrationMode;
+  /** If true, preview without making changes */
+  dryRun: boolean;
+  /** If true, proceed even if destination has existing history */
+  force: boolean;
+  /** Custom Cursor data path (optional) */
+  dataPath?: string;
+}
+
+/**
+ * Options for migrating all sessions from a workspace
+ */
+export interface MigrateWorkspaceOptions {
+  /** Source workspace path */
+  source: string;
+  /** Destination workspace path */
+  destination: string;
+  /** Migration mode: 'move' (default) or 'copy' */
+  mode: MigrationMode;
+  /** If true, preview without making changes */
+  dryRun: boolean;
+  /** If true, proceed even if destination has existing history */
+  force: boolean;
+  /** Custom Cursor data path (optional) */
+  dataPath?: string;
+}
+
+/**
+ * Result of migrating a single session
+ */
+export interface SessionMigrationResult {
+  /** Whether migration succeeded */
+  success: boolean;
+  /** Original session ID */
+  sessionId: string;
+  /** Source workspace path */
+  sourceWorkspace: string;
+  /** Destination workspace path */
+  destinationWorkspace: string;
+  /** Mode used for migration */
+  mode: MigrationMode;
+  /** For copy mode: the new session ID created */
+  newSessionId?: string;
+  /** Error message if success is false */
+  error?: string;
+  /** Whether this was a dry run */
+  dryRun: boolean;
+}
+
+/**
+ * Aggregate result of workspace migration
+ */
+export interface WorkspaceMigrationResult {
+  /** True if all sessions migrated successfully */
+  success: boolean;
+  /** Normalized source path */
+  source: string;
+  /** Normalized destination path */
+  destination: string;
+  /** Mode used for migration */
+  mode: MigrationMode;
+  /** Total number of sessions attempted */
+  totalSessions: number;
+  /** Number of successful migrations */
+  successCount: number;
+  /** Number of failed migrations */
+  failureCount: number;
+  /** Per-session results */
+  results: SessionMigrationResult[];
+  /** Whether this was a dry run */
+  dryRun: boolean;
+}
