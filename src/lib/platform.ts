@@ -85,3 +85,41 @@ export function contractPath(path: string): string {
   }
   return path;
 }
+
+/**
+ * Normalize a file path for consistent comparison
+ * - Resolves ~ to home directory
+ * - Removes trailing slashes
+ * - Normalizes path separators
+ */
+export function normalizePath(filePath: string): string {
+  // Expand ~ to home directory
+  let normalized = filePath;
+  if (normalized.startsWith('~')) {
+    normalized = join(homedir(), normalized.slice(1));
+  }
+
+  // Remove trailing slashes (but keep root /)
+  while (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
+  }
+  while (normalized.length > 1 && normalized.endsWith('\\')) {
+    normalized = normalized.slice(0, -1);
+  }
+
+  return normalized;
+}
+
+/**
+ * Compare two paths for equality (case-sensitive on Unix, case-insensitive on Windows)
+ */
+export function pathsEqual(path1: string, path2: string): boolean {
+  const normalized1 = normalizePath(path1);
+  const normalized2 = normalizePath(path2);
+
+  if (process.platform === 'win32') {
+    return normalized1.toLowerCase() === normalized2.toLowerCase();
+  }
+
+  return normalized1 === normalized2;
+}
