@@ -19,9 +19,21 @@ export type {
   MigrateWorkspaceConfig,
   SessionMigrationResult,
   WorkspaceMigrationResult,
+  // Backup types
+  BackupManifest,
+  BackupFileEntry,
+  BackupStats,
+  BackupConfig,
+  BackupProgress,
+  BackupResult,
+  RestoreConfig,
+  RestoreProgress,
+  RestoreResult,
+  BackupValidation,
+  BackupInfo,
 } from './types.js';
 
-// Export error classes (will be created in Phase 2)
+// Export error classes
 export {
   DatabaseLockedError,
   DatabaseNotFoundError,
@@ -31,6 +43,17 @@ export {
   SameWorkspaceError,
   NoSessionsFoundError,
   DestinationHasSessionsError,
+  // Backup errors
+  BackupError,
+  NoDataError,
+  FileExistsError,
+  InsufficientSpaceError,
+  RestoreError,
+  BackupNotFoundError,
+  InvalidBackupError,
+  TargetExistsError,
+  IntegrityError,
+  // Type guards
   isDatabaseLockedError,
   isDatabaseNotFoundError,
   isInvalidConfigError,
@@ -39,6 +62,16 @@ export {
   isSameWorkspaceError,
   isNoSessionsFoundError,
   isDestinationHasSessionsError,
+  // Backup type guards
+  isBackupError,
+  isNoDataError,
+  isFileExistsError,
+  isInsufficientSpaceError,
+  isRestoreError,
+  isBackupNotFoundError,
+  isInvalidBackupError,
+  isTargetExistsError,
+  isIntegrityError,
 } from './errors.js';
 
 // Export utility functions
@@ -588,3 +621,16 @@ export function migrateWorkspace(config: MigrateWorkspaceConfig): WorkspaceMigra
     dataPath: config.dataPath,
   });
 }
+
+// ============================================================================
+// Backup Functions
+// ============================================================================
+
+// Re-export backup functions from backup module
+export {
+  createBackup,
+  restoreBackup,
+  validateBackup,
+  listBackups,
+  getDefaultBackupDir,
+} from './backup.js';

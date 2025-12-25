@@ -56,11 +56,13 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "better-sqlite3": "^12.5.0",
     "commander": "^14.0.2",
     "picocolors": "^1.1.1"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.0.3",
     "eslint": "^9.39.2",

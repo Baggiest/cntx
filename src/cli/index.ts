@@ -35,6 +35,7 @@ async function loadCommands() {
   const { registerExportCommand } = await import('./commands/export.js');
   const { registerMigrateSessionCommand } = await import('./commands/migrate-session.js');
   const { registerMigrateCommand } = await import('./commands/migrate.js');
+  const { registerBackupCommand } = await import('./commands/backup.js');
 
   registerListCommand(program);
   registerShowCommand(program);
@@ -42,6 +43,7 @@ async function loadCommands() {
   registerExportCommand(program);
   registerMigrateSessionCommand(program);
   registerMigrateCommand(program);
+  registerBackupCommand(program);
 }
 
 // Main execution

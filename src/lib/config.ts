@@ -20,6 +20,7 @@ export interface ResolvedConfig {
   limit: number;
   offset: number;
   context: number;
+  backupPath?: string;
 }
 
 /**
@@ -80,6 +81,7 @@ export function mergeWithDefaults(config?: LibraryConfig): ResolvedConfig {
     limit: config?.limit ?? Number.MAX_SAFE_INTEGER,
     offset: config?.offset ?? 0,
     context: config?.context ?? 0,
+    backupPath: config?.backupPath,
   };
 }
 

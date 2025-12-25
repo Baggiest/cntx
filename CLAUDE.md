@@ -311,6 +311,7 @@ Edit `extractBubbleText()` in `src/core/storage.ts`. Priority matters:
 - better-sqlite3 for SQLite database access (read-only for queries, read-write for migrations)
 - commander + picocolors for CLI (not used in library)
 - Dual ESM/CommonJS module support
+- SQLite databases (state.vscdb files) + zip archives (004-full-backup)
 
 ## Recent Changes
 - 003-migrate-workspace: Added session migration feature

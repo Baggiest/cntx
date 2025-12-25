@@ -128,6 +128,9 @@ export interface LibraryConfig {
 
   /** Search context lines (optional, defaults to 0) */
   context?: number;
+
+  /** Read from backup file instead of live data (optional) */
+  backupPath?: string;
 }
 
 /**
@@ -274,4 +277,225 @@ export interface WorkspaceMigrationResult {
 
   /** Whether this was a dry run */
   dryRun: boolean;
+}
+
+// ============================================================================
+// Backup Types (Library API)
+// ============================================================================
+
+/**
+ * Metadata stored in the manifest.json file within the backup zip.
+ */
+export interface BackupManifest {
+  /** Manifest schema version for backward compatibility */
+  version: string;
+
+  /** ISO 8601 timestamp when backup was created */
+  createdAt: string;
+
+  /** Platform where backup was created */
+  sourcePlatform: 'darwin' | 'win32' | 'linux';
+
+  /** cursor-history version that created the backup */
+  cursorHistoryVersion: string;
+
+  /** List of files in the backup with metadata */
+  files: BackupFileEntry[];
+
+  /** Aggregate statistics for quick display */
+  stats: BackupStats;
+}
+
+/**
+ * A single file entry in the backup manifest.
+ */
+export interface BackupFileEntry {
+  /** Path within zip (forward slashes, relative to zip root) */
+  path: string;
+
+  /** Original file size in bytes */
+  size: number;
+
+  /** SHA-256 checksum for integrity verification */
+  checksum: string;
+
+  /** File type for categorization */
+  type: 'global-db' | 'workspace-db' | 'manifest';
+}
+
+/**
+ * Aggregate statistics for a backup.
+ */
+export interface BackupStats {
+  /** Total uncompressed size of all files */
+  totalSize: number;
+
+  /** Number of chat sessions across all workspaces */
+  sessionCount: number;
+
+  /** Number of workspaces included */
+  workspaceCount: number;
+}
+
+/**
+ * Configuration for backup creation operation.
+ */
+export interface BackupConfig {
+  /** Source Cursor data path (default: platform-specific) */
+  sourcePath?: string;
+
+  /** Output file path (default: ~/cursor-history-backups/<timestamp>.zip) */
+  outputPath?: string;
+
+  /** Overwrite existing file without prompting */
+  force?: boolean;
+
+  /** Progress callback for UI updates */
+  onProgress?: (progress: BackupProgress) => void;
+}
+
+/**
+ * Progress information during backup operation.
+ */
+export interface BackupProgress {
+  /** Current operation phase */
+  phase: 'scanning' | 'backing-up' | 'compressing' | 'finalizing';
+
+  /** Current file being processed */
+  currentFile?: string;
+
+  /** Files completed / total files */
+  filesCompleted: number;
+  totalFiles: number;
+
+  /** Bytes completed / total bytes */
+  bytesCompleted: number;
+  totalBytes: number;
+}
+
+/**
+ * Result of a backup operation.
+ */
+export interface BackupResult {
+  /** Whether backup succeeded */
+  success: boolean;
+
+  /** Path to created backup file */
+  backupPath: string;
+
+  /** Generated manifest */
+  manifest: BackupManifest;
+
+  /** Duration in milliseconds */
+  durationMs: number;
+
+  /** Error message if failed */
+  error?: string;
+}
+
+/**
+ * Configuration for restore operation.
+ */
+export interface RestoreConfig {
+  /** Path to backup zip file */
+  backupPath: string;
+
+  /** Target Cursor data path (default: platform-specific) */
+  targetPath?: string;
+
+  /** Overwrite existing data without prompting */
+  force?: boolean;
+
+  /** Progress callback for UI updates */
+  onProgress?: (progress: RestoreProgress) => void;
+}
+
+/**
+ * Progress information during restore operation.
+ */
+export interface RestoreProgress {
+  /** Current operation phase */
+  phase: 'validating' | 'extracting' | 'finalizing';
+
+  /** Current file being processed */
+  currentFile?: string;
+
+  /** Files completed / total files */
+  filesCompleted: number;
+  totalFiles: number;
+
+  /** Integrity status */
+  integrityStatus: 'pending' | 'passed' | 'warnings' | 'failed';
+
+  /** Files with checksum warnings (if any) */
+  corruptedFiles?: string[];
+}
+
+/**
+ * Result of a restore operation.
+ */
+export interface RestoreResult {
+  /** Whether restore succeeded */
+  success: boolean;
+
+  /** Path where data was restored */
+  targetPath: string;
+
+  /** Number of files restored */
+  filesRestored: number;
+
+  /** Files with integrity warnings (still restored) */
+  warnings: string[];
+
+  /** Duration in milliseconds */
+  durationMs: number;
+
+  /** Error message if failed */
+  error?: string;
+}
+
+/**
+ * Result of backup integrity validation.
+ */
+export interface BackupValidation {
+  /** Overall validation status */
+  status: 'valid' | 'warnings' | 'invalid';
+
+  /** Manifest if parseable */
+  manifest?: BackupManifest;
+
+  /** Files that passed checksum verification */
+  validFiles: string[];
+
+  /** Files that failed checksum verification */
+  corruptedFiles: string[];
+
+  /** Files missing from manifest */
+  missingFiles: string[];
+
+  /** Detailed error messages */
+  errors: string[];
+}
+
+/**
+ * Metadata about a backup file for listing purposes.
+ */
+export interface BackupInfo {
+  /** Full path to the backup file */
+  filePath: string;
+
+  /** Backup filename */
+  filename: string;
+
+  /** File size in bytes */
+  fileSize: number;
+
+  /** File modification time (from filesystem) */
+  modifiedAt: Date;
+
+  /** Parsed manifest (if valid backup) */
+  manifest?: BackupManifest;
+
+  /** Error if backup is invalid or corrupted */
+  error?: string;
 }
