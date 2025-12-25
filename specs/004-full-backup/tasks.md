@@ -154,11 +154,11 @@
 - [x] T065 [P] Export all backup types from src/lib/types.ts
 - [x] T066 [P] Add type guards (isBackupError, isRestoreError, isInvalidBackupError) to src/lib/errors.ts
 - [x] T067 [P] Export type guards from src/lib/index.ts
-- [ ] T068 Update README.md with backup/restore usage examples (deferred - docs)
+- [x] T068 Update README.md with backup/restore usage examples
 - [x] T069 Run typecheck and fix any TypeScript errors
 - [x] T070 Run lint and fix any linting issues
 - [x] T071 Verify all CLI commands have proper --help text
-- [ ] T072 Run quickstart.md validation (test all documented commands) (deferred - docs)
+- [x] T072 Run quickstart.md validation (test all documented commands)
 
 ---
 

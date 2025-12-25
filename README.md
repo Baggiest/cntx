@@ -15,6 +15,7 @@ CLI tool and library to browse, search, and export your Cursor AI chat history.
 - **Search** - Find conversations by keyword with highlighted matches
 - **Export** - Save sessions as Markdown or JSON files
 - **Migrate** - Move or copy sessions between workspaces (e.g., when renaming projects)
+- **Backup & Restore** - Create full backups of all chat history and restore when needed
 - **Cross-platform** - Works on macOS, Windows, and Linux
 
 ## Installation
@@ -154,6 +155,40 @@ cursor-history migrate --copy /project /backup/project
 cursor-history migrate --force /old/project /existing/project
 ```
 
+### Backup & Restore
+
+```bash
+# Create a backup of all chat history
+cursor-history backup
+
+# Create backup to specific file
+cursor-history backup -o ~/my-backup.zip
+
+# Overwrite existing backup
+cursor-history backup --force
+
+# List available backups
+cursor-history list-backups
+
+# List backups in a specific directory
+cursor-history list-backups -d /path/to/backups
+
+# Restore from a backup
+cursor-history restore ~/cursor-history-backups/backup.zip
+
+# Restore to a custom location
+cursor-history restore backup.zip --target /custom/cursor/data
+
+# Force overwrite existing data
+cursor-history restore backup.zip --force
+
+# View sessions from a backup without restoring
+cursor-history list --backup ~/backup.zip
+cursor-history show 1 --backup ~/backup.zip
+cursor-history search "query" --backup ~/backup.zip
+cursor-history export 1 --backup ~/backup.zip
+```
+
 ### Global Options
 
 ```bash
@@ -265,6 +300,53 @@ const result = migrateWorkspace({
 console.log(`Migrated ${result.successCount} sessions`);
 ```
 
+### Backup API
+
+```typescript
+import {
+  createBackup,
+  restoreBackup,
+  validateBackup,
+  listBackups,
+  getDefaultBackupDir
+} from 'cursor-history';
+
+// Create a backup
+const result = await createBackup({
+  outputPath: '~/my-backup.zip',
+  force: true,
+  onProgress: (progress) => {
+    console.log(`${progress.phase}: ${progress.filesCompleted}/${progress.totalFiles}`);
+  }
+});
+console.log(`Backup created: ${result.backupPath}`);
+console.log(`Sessions: ${result.manifest.stats.sessionCount}`);
+
+// Validate a backup
+const validation = validateBackup('~/backup.zip');
+if (validation.status === 'valid') {
+  console.log('Backup is valid');
+} else if (validation.status === 'warnings') {
+  console.log('Backup has warnings:', validation.corruptedFiles);
+}
+
+// Restore from backup
+const restoreResult = restoreBackup({
+  backupPath: '~/backup.zip',
+  force: true
+});
+console.log(`Restored ${restoreResult.filesRestored} files`);
+
+// List available backups
+const backups = listBackups();  // Scans ~/cursor-history-backups/
+for (const backup of backups) {
+  console.log(`${backup.filename}: ${backup.manifest?.stats.sessionCount} sessions`);
+}
+
+// Read sessions from backup without restoring
+const sessions = listSessions({ backupPath: '~/backup.zip' });
+```
+
 ### Available Functions
 
 | Function | Description |
@@ -278,6 +360,11 @@ console.log(`Migrated ${result.successCount} sessions`);
 | `exportAllSessionsToMarkdown(config?)` | Export all sessions to Markdown |
 | `migrateSession(config)` | Move/copy sessions to another workspace |
 | `migrateWorkspace(config)` | Move/copy all sessions between workspaces |
+| `createBackup(config?)` | Create full backup of all chat history |
+| `restoreBackup(config)` | Restore chat history from backup |
+| `validateBackup(path)` | Validate backup integrity |
+| `listBackups(directory?)` | List available backup files |
+| `getDefaultBackupDir()` | Get default backup directory path |
 | `getDefaultDataPath()` | Get platform-specific Cursor data path |
 
 ### Configuration Options
@@ -289,6 +376,7 @@ interface LibraryConfig {
   limit?: number;       // Pagination limit
   offset?: number;      // Pagination offset
   context?: number;     // Search context lines
+  backupPath?: string;  // Read from backup file instead of live data
 }
 ```
 
@@ -297,10 +385,14 @@ interface LibraryConfig {
 ```typescript
 import {
   listSessions,
+  createBackup,
   isDatabaseLockedError,
   isDatabaseNotFoundError,
   isSessionNotFoundError,
-  isWorkspaceNotFoundError
+  isWorkspaceNotFoundError,
+  isBackupError,
+  isRestoreError,
+  isInvalidBackupError
 } from 'cursor-history';
 
 try {
@@ -314,6 +406,19 @@ try {
     console.error('Session not found');
   } else if (isWorkspaceNotFoundError(err)) {
     console.error('Workspace not found - open project in Cursor first');
+  }
+}
+
+// Backup-specific errors
+try {
+  const result = await createBackup();
+} catch (err) {
+  if (isBackupError(err)) {
+    console.error('Backup failed:', err.message);
+  } else if (isInvalidBackupError(err)) {
+    console.error('Invalid backup file');
+  } else if (isRestoreError(err)) {
+    console.error('Restore failed:', err.message);
   }
 }
 ```

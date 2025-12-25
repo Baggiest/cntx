@@ -54,7 +54,7 @@ cursor-history restore ~/backup.zip --target /path/to/cursor/data
 cursor-history list-backups
 
 # List backups in custom directory
-cursor-history list-backups ~/my-backups
+cursor-history list-backups -d ~/my-backups
 ```
 
 ---
