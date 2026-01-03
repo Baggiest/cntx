@@ -2,7 +2,7 @@
  * Core backup and restore functionality
  *
  * This module provides low-level backup operations:
- * - SQLite database backup using better-sqlite3 backup API
+ * - SQLite database backup using pluggable driver system
  * - Zip creation/extraction using adm-zip
  * - Manifest generation with checksums
  * - Integrity validation
@@ -12,8 +12,10 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, readFileSync, writeFileSync, rmdirSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, basename, dirname, sep } from 'node:path';
-import Database from 'better-sqlite3';
 import AdmZip from 'adm-zip';
+import type { Database as DatabaseInterface, Statement } from './database/types.js';
+import { registry } from './database/registry.js';
+import { backupDatabase } from './database/index.js';
 import type {
   BackupManifest,
   BackupFileEntry,
@@ -27,7 +29,7 @@ import type {
 } from './types.js';
 
 // Package version for manifest
-const CURSOR_HISTORY_VERSION = '0.8.0';
+const CURSOR_HISTORY_VERSION = '0.9.1';
 const MANIFEST_VERSION = '1.0.0';
 
 // ============================================================================
@@ -169,10 +171,11 @@ export function createManifest(
 
 /**
  * Count sessions in a database file
+ * Uses the pluggable driver system (requires driver to be pre-selected)
  */
 function countSessions(dbPath: string): number {
   try {
-    const db = new Database(dbPath, { readonly: true });
+    const db = registry.openSync(dbPath, { readonly: true });
     try {
       // Try to read composer data
       const row = db.prepare("SELECT value FROM ItemTable WHERE key = 'composer.composerData'").get() as
@@ -199,19 +202,6 @@ function countSessions(dbPath: string): number {
 // ============================================================================
 // Backup Operations (T011-T016)
 // ============================================================================
-
-/**
- * T011: Backup a single database file using SQLite backup API
- * This ensures a consistent snapshot even if Cursor is running
- */
-export async function backupDatabase(sourcePath: string, destPath: string): Promise<void> {
-  const sourceDb = new Database(sourcePath, { readonly: true });
-  try {
-    await sourceDb.backup(destPath);
-  } finally {
-    sourceDb.close();
-  }
-}
 
 /**
  * T013: Check if there's enough disk space for the backup
@@ -455,10 +445,40 @@ export async function createBackup(config?: BackupConfig): Promise<BackupResult>
 // ============================================================================
 
 /**
- * T025: Open a database from a backup zip file
- * Note: better-sqlite3 cannot open directly from buffer, so we extract to a temp file
+ * Wrapper that cleans up temp file when database is closed.
  */
-export function openBackupDatabase(backupPath: string, dbPath: string): Database.Database {
+class TempFileCleanupWrapper implements DatabaseInterface {
+  constructor(
+    private innerDb: DatabaseInterface,
+    private tempFilePath: string
+  ) {}
+
+  prepare(sql: string): Statement {
+    return this.innerDb.prepare(sql);
+  }
+
+  runSQL(sql: string): void {
+    this.innerDb.runSQL(sql);
+  }
+
+  close(): void {
+    this.innerDb.close();
+    // Clean up temp file
+    try {
+      unlinkSync(this.tempFilePath);
+    } catch {
+      // Ignore cleanup errors
+    }
+  }
+}
+
+/**
+ * T025: Open a database from a backup zip file
+ * Uses the pluggable driver system to open the database.
+ * Extracts to a temp file since SQLite needs file access.
+ * Returns a Database interface compatible with the pluggable driver system.
+ */
+export function openBackupDatabase(backupPath: string, dbPath: string): DatabaseInterface {
   const zip = new AdmZip(backupPath);
   const buffer = zip.readFile(dbPath);
 
@@ -466,32 +486,30 @@ export function openBackupDatabase(backupPath: string, dbPath: string): Database
     throw new Error(`Database not found in backup: ${dbPath}`);
   }
 
-  // better-sqlite3 cannot open from buffer directly - write to temp file
+  // Extract to temp file since SQLite needs file access
   const tempFile = join(
     tmpdir(),
     `cursor_history_backup_${Date.now()}_${Math.random().toString(36).slice(2)}.vscdb`
   );
   writeFileSync(tempFile, buffer);
 
-  // Open the temp file and set up cleanup on close
-  const db = new Database(tempFile, { readonly: true });
+  // Use pluggable driver system - registry.openSync requires driver to already be selected
+  let db: DatabaseInterface | null = null;
 
-  // Store temp file path for cleanup
-  (db as Database.Database & { _tempFile?: string })._tempFile = tempFile;
-
-  // Wrap close to clean up temp file
-  const originalClose = db.close.bind(db);
-  db.close = () => {
-    const result = originalClose();
+  try {
+    db = registry.openSync(tempFile, { readonly: true });
+  } catch (err) {
+    // Clean up temp file on error
     try {
       unlinkSync(tempFile);
     } catch {
       // Ignore cleanup errors
     }
-    return result;
-  };
+    throw err;
+  }
 
-  return db;
+  // Return wrapped database that will clean up temp file on close
+  return new TempFileCleanupWrapper(db, tempFile);
 }
 
 /**
