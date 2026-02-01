@@ -184,6 +184,7 @@ class DriverRegistry {
    * Reset the registry (mainly for testing)
    */
   reset(): void {
+    this.drivers.clear();
     this.currentDriver = null;
     this.initialized = false;
     debugLog('Registry reset');
