@@ -76,7 +76,30 @@ export function formatSessionJson(
     output['filteredMessageCount'] = session.messages.length;
   }
 
-  // Map messages with optional type field
+  // Add session-level usage data if available
+  if (session.usage) {
+    const usage: Record<string, unknown> = {};
+    if (session.usage.contextTokensUsed !== undefined) {
+      usage['contextTokensUsed'] = session.usage.contextTokensUsed;
+    }
+    if (session.usage.contextTokenLimit !== undefined) {
+      usage['contextTokenLimit'] = session.usage.contextTokenLimit;
+    }
+    if (session.usage.contextUsagePercent !== undefined) {
+      usage['contextUsagePercent'] = session.usage.contextUsagePercent;
+    }
+    if (session.usage.totalInputTokens !== undefined) {
+      usage['totalInputTokens'] = session.usage.totalInputTokens;
+    }
+    if (session.usage.totalOutputTokens !== undefined) {
+      usage['totalOutputTokens'] = session.usage.totalOutputTokens;
+    }
+    if (Object.keys(usage).length > 0) {
+      output['usage'] = usage;
+    }
+  }
+
+  // Map messages with optional type and token usage fields
   output['messages'] = session.messages.map((m) => {
     const msg: Record<string, unknown> = {
       id: m.id,
@@ -89,10 +112,26 @@ export function formatSessionJson(
         startLine: cb.startLine,
       })),
     };
+
     // Add type field when filtering is active
     if (messageFilter && messageFilter.length > 0) {
       msg['type'] = getMessageType(m);
     }
+
+    // Add token usage fields if present (omit if not available)
+    if (m.tokenUsage && (m.tokenUsage.inputTokens > 0 || m.tokenUsage.outputTokens > 0)) {
+      msg['tokenUsage'] = {
+        inputTokens: m.tokenUsage.inputTokens,
+        outputTokens: m.tokenUsage.outputTokens,
+      };
+    }
+    if (m.model) {
+      msg['model'] = m.model;
+    }
+    if (m.durationMs && m.durationMs > 0) {
+      msg['durationMs'] = m.durationMs;
+    }
+
     return msg;
   });
 

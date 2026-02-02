@@ -37,20 +37,32 @@ export function validateConfig(config?: LibraryConfig): void {
   // Validate limit
   if (config.limit !== undefined) {
     if (typeof config.limit !== 'number' || config.limit < 1 || !Number.isInteger(config.limit)) {
-      throw new InvalidConfigError('limit', config.limit, 'must be a positive integer greater than 0');
+      throw new InvalidConfigError(
+        'limit',
+        config.limit,
+        'must be a positive integer greater than 0'
+      );
     }
   }
 
   // Validate offset
   if (config.offset !== undefined) {
-    if (typeof config.offset !== 'number' || config.offset < 0 || !Number.isInteger(config.offset)) {
+    if (
+      typeof config.offset !== 'number' ||
+      config.offset < 0 ||
+      !Number.isInteger(config.offset)
+    ) {
       throw new InvalidConfigError('offset', config.offset, 'must be a non-negative integer');
     }
   }
 
   // Validate context
   if (config.context !== undefined) {
-    if (typeof config.context !== 'number' || config.context < 0 || !Number.isInteger(config.context)) {
+    if (
+      typeof config.context !== 'number' ||
+      config.context < 0 ||
+      !Number.isInteger(config.context)
+    ) {
       throw new InvalidConfigError('context', config.context, 'must be a non-negative integer');
     }
   }

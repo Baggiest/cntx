@@ -164,7 +164,7 @@ class DriverRegistry {
     if (!this.currentDriver) {
       throw new Error(
         'No driver is currently active. Auto-selection must complete before using openSync(). ' +
-        'Call a database operation first to trigger auto-selection.'
+          'Call a database operation first to trigger auto-selection.'
       );
     }
     return this.currentDriver.open(path, options);

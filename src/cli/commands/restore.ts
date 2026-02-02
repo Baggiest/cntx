@@ -39,9 +39,7 @@ function displayProgress(progress: RestoreProgress): void {
 
   const phaseText = phases[progress.phase];
   const fileProgress =
-    progress.totalFiles > 0
-      ? ` [${progress.filesCompleted}/${progress.totalFiles}]`
-      : '';
+    progress.totalFiles > 0 ? ` [${progress.filesCompleted}/${progress.totalFiles}]` : '';
   const currentFile = progress.currentFile ? ` ${pc.dim(progress.currentFile)}` : '';
 
   // Show integrity status during validation
@@ -110,7 +108,10 @@ export function registerRestoreCommand(program: Command): void {
   program
     .command('restore <backup>')
     .description('Restore chat history from a backup file')
-    .option('-t, --target <path>', 'Target Cursor data path (default: platform-specific Cursor data directory)')
+    .option(
+      '-t, --target <path>',
+      'Target Cursor data path (default: platform-specific Cursor data directory)'
+    )
     .option('-f, --force', 'Overwrite existing data without prompting')
     .action(async (backupArg: string, options: RestoreCommandOptions, command: Command) => {
       const globalOptions = command.parent?.opts() as { json?: boolean; dataPath?: string };
@@ -136,10 +137,12 @@ export function registerRestoreCommand(program: Command): void {
         const validation = await validateBackup(backupPath);
         if (validation.status === 'invalid') {
           if (useJson) {
-            console.log(JSON.stringify({
-              error: 'Invalid or corrupted backup',
-              errors: validation.errors
-            }));
+            console.log(
+              JSON.stringify({
+                error: 'Invalid or corrupted backup',
+                errors: validation.errors,
+              })
+            );
           } else {
             console.error(pc.red('Invalid or corrupted backup file:'));
             for (const err of validation.errors) {
@@ -151,14 +154,20 @@ export function registerRestoreCommand(program: Command): void {
 
         // Show warning for backups with integrity issues
         if (validation.status === 'warnings' && !useJson) {
-          console.log(pc.yellow(`Warning: Backup has ${validation.corruptedFiles.length} file(s) with checksum mismatches.`));
+          console.log(
+            pc.yellow(
+              `Warning: Backup has ${validation.corruptedFiles.length} file(s) with checksum mismatches.`
+            )
+          );
           console.log(pc.dim('These files will be restored but may be corrupted.\n'));
         }
 
         // Resolve target path if provided
         const targetPath = options.target
           ? expandPath(options.target)
-          : (customPath ? expandPath(customPath) : undefined);
+          : customPath
+            ? expandPath(customPath)
+            : undefined;
 
         // Show progress if not JSON mode
         const onProgress = useJson ? undefined : displayProgress;

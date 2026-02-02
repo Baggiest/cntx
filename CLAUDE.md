@@ -362,8 +362,22 @@ Edit `extractBubbleText()` in `src/core/storage.ts`. Priority matters:
 - SQLite databases (state.vscdb), zip archives for backup (007-replace-adm-zip)
 - TypeScript 5.9+ (strict mode enabled) + commander (CLI), picocolors (formatting), better-sqlite3/node:sqlite (database) (008-message-type-filter)
 - SQLite databases (state.vscdb files) - read-only for this feature (008-message-type-filter)
+- TypeScript 5.0+ (strict mode enabled) + better-sqlite3 or node:sqlite (existing), picocolors (existing CLI formatting) (009-token-usage)
+- SQLite (read-only access to existing `state.vscdb` files) (009-token-usage)
 
 ## Recent Changes
+- 009-token-usage: Added token usage extraction and display
+  - Extracts token counts from multiple sources with fallbacks: `tokenCount` (camelCase), `usage` (snake_case), `contextWindowStatusAtCreation`, `promptDryRunInfo`
+  - Per-message display: badge appended after content `[model input→output duration]`
+  - Session-level summary at bottom: context usage, total tokens
+  - New types in `src/core/types.ts`: `TokenUsage`, `SessionUsage`, `ContextWindowStatus`
+  - Extended `Message` interface with `tokenUsage?`, `model?`, `durationMs?` fields
+  - Extended `ChatSession` interface with `usage?: SessionUsage` field
+  - Extraction functions in `src/core/storage.ts`: `extractTokenUsage()`, `extractModelInfo()`, `extractTimingInfo()`, `extractSessionUsage()`, `extractPromptDryRunInfo()`
+  - Formatting functions in `src/cli/formatters/table.ts`: `formatTokenCount()`, `formatDuration()`, `formatUsageBadge()`, `formatSessionSummary()`
+  - Library API: `TokenUsage`, `SessionUsage` types exported; `getSession()` returns usage data
+  - JSON output includes token usage on messages and session-level usage
+
 - 008-message-type-filter: Added message type filtering feature
   - `--only <types>` option for `show` command to filter by message type
   - Five filter types: `user`, `assistant`, `tool`, `thinking`, `error`

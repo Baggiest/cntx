@@ -19,6 +19,9 @@ export type {
   MigrateWorkspaceConfig,
   SessionMigrationResult,
   WorkspaceMigrationResult,
+  // Token usage types
+  TokenUsage,
+  SessionUsage,
   // Backup types
   BackupManifest,
   BackupFileEntry,
@@ -87,24 +90,36 @@ export {
 export { getDefaultDataPath } from './utils.js';
 
 // Export filter functions from formatters
-export {
-  getMessageType,
-  filterMessages,
-  validateMessageTypes,
-} from '../cli/formatters/table.js';
+export { getMessageType, filterMessages, validateMessageTypes } from '../cli/formatters/table.js';
 
 // API Functions (to be implemented in Phase 3+)
-import type { LibraryConfig, PaginatedResult, Session, SearchResult, MigrateSessionConfig, MigrateWorkspaceConfig, SessionMigrationResult, WorkspaceMigrationResult, SqliteDriverName } from './types.js';
+import type {
+  LibraryConfig,
+  PaginatedResult,
+  Session,
+  SearchResult,
+  MigrateSessionConfig,
+  MigrateWorkspaceConfig,
+  SessionMigrationResult,
+  WorkspaceMigrationResult,
+  SqliteDriverName,
+} from './types.js';
 import { mergeWithDefaults } from './config.js';
 import { DatabaseLockedError, DatabaseNotFoundError, InvalidFilterError } from './errors.js';
-import { filterMessages as filterMessagesImpl, validateMessageTypes as validateMessageTypesImpl } from '../cli/formatters/table.js';
+import {
+  filterMessages as filterMessagesImpl,
+  validateMessageTypes as validateMessageTypesImpl,
+} from '../cli/formatters/table.js';
 import { MESSAGE_TYPES as MESSAGE_TYPES_CONST } from '../core/types.js';
 import * as storage from '../core/storage.js';
 import * as migrate from '../core/migrate.js';
 import { exportToJson, exportToMarkdown } from '../core/parser.js';
 import { expandPath } from './platform.js';
 import type { ChatSession as CoreSession } from '../core/types.js';
-import { setDriver as coreSetDriver, getActiveDriver as coreGetActiveDriver } from '../core/database/index.js';
+import {
+  setDriver as coreSetDriver,
+  getActiveDriver as coreGetActiveDriver,
+} from '../core/database/index.js';
 
 /**
  * Convert core ChatSession to library Session
@@ -120,9 +135,13 @@ function convertToLibrarySession(coreSession: CoreSession): Session {
       timestamp: msg.timestamp.toISOString(),
       toolCalls: msg.toolCalls,
       thinking: msg.thinking,
+      tokenUsage: msg.tokenUsage,
+      model: msg.model,
+      durationMs: msg.durationMs,
       metadata: msg.metadata,
     })),
     messageCount: coreSession.messageCount,
+    usage: coreSession.usage,
     metadata: {
       lastModified: coreSession.lastUpdatedAt.toISOString(),
     },
@@ -179,7 +198,11 @@ export async function listSessions(config?: LibraryConfig): Promise<PaginatedRes
     // We need full sessions, not summaries, so we'll fetch each one
     const sessions: Session[] = [];
     for (const summary of paginatedSessions) {
-      const fullSession = await storage.getSession(summary.index, resolved.dataPath, resolved.backupPath);
+      const fullSession = await storage.getSession(
+        summary.index,
+        resolved.dataPath,
+        resolved.backupPath
+      );
       if (!fullSession) {
         throw new DatabaseNotFoundError(`Session ${summary.index} not found`);
       }
@@ -201,7 +224,10 @@ export async function listSessions(config?: LibraryConfig): Promise<PaginatedRes
       throw new DatabaseLockedError(config?.dataPath ?? 'default path');
     }
     // Check for file not found errors
-    if (err instanceof Error && (err.message.includes('ENOENT') || err.message.includes('no such file'))) {
+    if (
+      err instanceof Error &&
+      (err.message.includes('ENOENT') || err.message.includes('no such file'))
+    ) {
       throw new DatabaseNotFoundError(config?.dataPath ?? 'default path');
     }
     // Re-throw library errors as-is
@@ -268,11 +294,18 @@ export async function getSession(index: number, config?: LibraryConfig): Promise
       throw new DatabaseLockedError(config?.dataPath ?? 'default path');
     }
     // Check for file not found errors
-    if (err instanceof Error && (err.message.includes('ENOENT') || err.message.includes('no such file'))) {
+    if (
+      err instanceof Error &&
+      (err.message.includes('ENOENT') || err.message.includes('no such file'))
+    ) {
       throw new DatabaseNotFoundError(config?.dataPath ?? 'default path');
     }
     // Re-throw library errors as-is
-    if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError || err instanceof InvalidFilterError) {
+    if (
+      err instanceof DatabaseLockedError ||
+      err instanceof DatabaseNotFoundError ||
+      err instanceof InvalidFilterError
+    ) {
       throw err;
     }
     // Wrap other errors
@@ -306,7 +339,10 @@ export async function getSession(index: number, config?: LibraryConfig): Promise
  * // Search within specific workspace
  * const results = await searchSessions('bug', { workspace: '/path/to/project' });
  */
-export async function searchSessions(query: string, config?: LibraryConfig): Promise<SearchResult[]> {
+export async function searchSessions(
+  query: string,
+  config?: LibraryConfig
+): Promise<SearchResult[]> {
   try {
     const resolved = mergeWithDefaults(config);
 
@@ -326,7 +362,11 @@ export async function searchSessions(query: string, config?: LibraryConfig): Pro
     const results: SearchResult[] = [];
     for (const coreResult of coreResults) {
       // Get full session for reference
-      const fullSession = await storage.getSession(coreResult.index, resolved.dataPath, resolved.backupPath);
+      const fullSession = await storage.getSession(
+        coreResult.index,
+        resolved.dataPath,
+        resolved.backupPath
+      );
       if (!fullSession) {
         throw new DatabaseNotFoundError(`Session ${coreResult.index} not found`);
       }
@@ -383,7 +423,10 @@ export async function searchSessions(query: string, config?: LibraryConfig): Pro
       throw new DatabaseLockedError(config?.dataPath ?? 'default path');
     }
     // Check for file not found errors
-    if (err instanceof Error && (err.message.includes('ENOENT') || err.message.includes('no such file'))) {
+    if (
+      err instanceof Error &&
+      (err.message.includes('ENOENT') || err.message.includes('no such file'))
+    ) {
       throw new DatabaseNotFoundError(config?.dataPath ?? 'default path');
     }
     // Re-throw library errors as-is
@@ -391,7 +434,9 @@ export async function searchSessions(query: string, config?: LibraryConfig): Pro
       throw err;
     }
     // Wrap other errors
-    throw new Error(`Failed to search sessions: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(
+      `Failed to search sessions: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 }
 
@@ -424,7 +469,9 @@ export async function exportSessionToJson(index: number, config?: LibraryConfig)
     if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError) {
       throw err;
     }
-    throw new Error(`Failed to export session to JSON: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(
+      `Failed to export session to JSON: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 }
 
@@ -442,7 +489,10 @@ export async function exportSessionToJson(index: number, config?: LibraryConfig)
  * const markdown = await exportSessionToMarkdown(0);
  * fs.writeFileSync('session.md', markdown);
  */
-export async function exportSessionToMarkdown(index: number, config?: LibraryConfig): Promise<string> {
+export async function exportSessionToMarkdown(
+  index: number,
+  config?: LibraryConfig
+): Promise<string> {
   try {
     const resolved = mergeWithDefaults(config);
     const coreIndex = index + 1; // Convert to 1-based indexing
@@ -457,7 +507,9 @@ export async function exportSessionToMarkdown(index: number, config?: LibraryCon
     if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError) {
       throw err;
     }
-    throw new Error(`Failed to export session to Markdown: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(
+      `Failed to export session to Markdown: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 }
 
@@ -495,9 +547,15 @@ export async function exportAllSessionsToJson(config?: LibraryConfig): Promise<s
     // Export each session
     const exportedSessions: Record<string, unknown>[] = [];
     for (const summary of coreSessions) {
-      const session = await storage.getSession(summary.index, resolved.dataPath, resolved.backupPath);
+      const session = await storage.getSession(
+        summary.index,
+        resolved.dataPath,
+        resolved.backupPath
+      );
       if (!session) continue;
-      exportedSessions.push(JSON.parse(exportToJson(session, session.workspacePath)) as Record<string, unknown>);
+      exportedSessions.push(
+        JSON.parse(exportToJson(session, session.workspacePath)) as Record<string, unknown>
+      );
     }
 
     return JSON.stringify(exportedSessions, null, 2);
@@ -505,7 +563,9 @@ export async function exportAllSessionsToJson(config?: LibraryConfig): Promise<s
     if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError) {
       throw err;
     }
-    throw new Error(`Failed to export all sessions to JSON: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(
+      `Failed to export all sessions to JSON: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 }
 
@@ -540,7 +600,11 @@ export async function exportAllSessionsToMarkdown(config?: LibraryConfig): Promi
     const parts: string[] = [];
 
     for (const summary of coreSessions) {
-      const session = await storage.getSession(summary.index, resolved.dataPath, resolved.backupPath);
+      const session = await storage.getSession(
+        summary.index,
+        resolved.dataPath,
+        resolved.backupPath
+      );
       if (!session) continue;
 
       parts.push(exportToMarkdown(session, session.workspacePath));
@@ -552,7 +616,9 @@ export async function exportAllSessionsToMarkdown(config?: LibraryConfig): Promi
     if (err instanceof DatabaseLockedError || err instanceof DatabaseNotFoundError) {
       throw err;
     }
-    throw new Error(`Failed to export all sessions to Markdown: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(
+      `Failed to export all sessions to Markdown: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 }
 
@@ -596,7 +662,9 @@ export async function exportAllSessionsToMarkdown(config?: LibraryConfig): Promi
  *   dryRun: true
  * });
  */
-export async function migrateSession(config: MigrateSessionConfig): Promise<SessionMigrationResult[]> {
+export async function migrateSession(
+  config: MigrateSessionConfig
+): Promise<SessionMigrationResult[]> {
   // Resolve session identifiers to IDs
   const sessionIds = await storage.resolveSessionIdentifiers(config.sessions, config.dataPath);
 
@@ -652,7 +720,9 @@ export async function migrateSession(config: MigrateSessionConfig): Promise<Sess
  *   force: true
  * });
  */
-export async function migrateWorkspace(config: MigrateWorkspaceConfig): Promise<WorkspaceMigrationResult> {
+export async function migrateWorkspace(
+  config: MigrateWorkspaceConfig
+): Promise<WorkspaceMigrationResult> {
   // Expand ~ in paths
   const source = expandPath(config.source);
   const destination = expandPath(config.destination);

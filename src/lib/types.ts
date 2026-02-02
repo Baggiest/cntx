@@ -25,6 +25,9 @@ export interface Session {
   /** Total number of messages in session */
   messageCount: number;
 
+  /** Session-level token usage summary (optional, when available) */
+  usage?: SessionUsage;
+
   /** Metadata about session origin (optional) */
   metadata?: {
     /** Cursor version that created this session */
@@ -33,6 +36,37 @@ export interface Session {
     /** Last modified timestamp */
     lastModified?: string;
   };
+}
+
+/**
+ * Token usage for a single message (input/output tokens consumed).
+ */
+export interface TokenUsage {
+  /** Number of input tokens (prompt tokens) */
+  inputTokens: number;
+
+  /** Number of output tokens (completion tokens) */
+  outputTokens: number;
+}
+
+/**
+ * Session-level usage summary (aggregated from messages and composer data).
+ */
+export interface SessionUsage {
+  /** Context tokens used (from composer data) */
+  contextTokensUsed?: number;
+
+  /** Context token limit (from composer data) */
+  contextTokenLimit?: number;
+
+  /** Context usage percentage (may be int or float, normalized to float) */
+  contextUsagePercent?: number;
+
+  /** Total input tokens across all messages */
+  totalInputTokens?: number;
+
+  /** Total output tokens across all messages */
+  totalOutputTokens?: number;
 }
 
 /**
@@ -53,6 +87,15 @@ export interface Message {
 
   /** AI reasoning/thinking text (optional, assistant-only) */
   thinking?: string;
+
+  /** Token usage for this message (optional, when available from bubble data) */
+  tokenUsage?: TokenUsage;
+
+  /** AI model name used for this message (optional, assistant-only) */
+  model?: string;
+
+  /** Response duration in milliseconds (optional, assistant-only) */
+  durationMs?: number;
 
   /** Metadata about message processing (optional) */
   metadata?: {

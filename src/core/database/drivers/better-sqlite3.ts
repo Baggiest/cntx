@@ -70,6 +70,9 @@ export const betterSqlite3Driver: DatabaseDriver = {
         const module = await import('better-sqlite3');
         BetterSqlite3 = module.default;
       }
+      // Actually test the native bindings by creating an in-memory database
+      const testDb = new BetterSqlite3(':memory:');
+      testDb.close();
       debugLog('better-sqlite3 is available');
       return true;
     } catch {

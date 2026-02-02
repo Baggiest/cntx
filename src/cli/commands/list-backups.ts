@@ -57,9 +57,10 @@ function formatBackupsTable(backups: BackupInfo[]): string {
   for (let i = 0; i < backups.length; i++) {
     const backup = backups[i]!;
     const index = String(i + 1).padStart(3);
-    const filename = backup.filename.length > 44
-      ? backup.filename.slice(0, 41) + '...'
-      : backup.filename.padEnd(45);
+    const filename =
+      backup.filename.length > 44
+        ? backup.filename.slice(0, 41) + '...'
+        : backup.filename.padEnd(45);
 
     // Use manifest date if available, otherwise file modification time
     const createdAt = backup.manifest?.createdAt
@@ -137,19 +138,19 @@ export function registerListBackupsCommand(program: Command): void {
 
       try {
         // Resolve directory path
-        const directory = options.directory
-          ? expandPath(options.directory)
-          : getDefaultBackupDir();
+        const directory = options.directory ? expandPath(options.directory) : getDefaultBackupDir();
 
         // T064: Check if directory exists
         if (!existsSync(directory)) {
           if (useJson) {
-            console.log(JSON.stringify({
-              error: 'Directory not found',
-              directory,
-              count: 0,
-              backups: []
-            }));
+            console.log(
+              JSON.stringify({
+                error: 'Directory not found',
+                directory,
+                count: 0,
+                backups: [],
+              })
+            );
           } else {
             console.error(pc.yellow('Backup directory not found:'));
             console.error(pc.dim(`  ${contractPath(directory)}`));
@@ -165,11 +166,13 @@ export function registerListBackupsCommand(program: Command): void {
         // T063: Handle no backups found
         if (backups.length === 0) {
           if (useJson) {
-            console.log(JSON.stringify({
-              directory: contractPath(directory),
-              count: 0,
-              backups: []
-            }));
+            console.log(
+              JSON.stringify({
+                directory: contractPath(directory),
+                count: 0,
+                backups: [],
+              })
+            );
           } else {
             console.log(pc.dim('No backups found in:'));
             console.log(pc.dim(`  ${contractPath(directory)}`));

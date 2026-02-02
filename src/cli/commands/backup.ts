@@ -52,9 +52,7 @@ function displayProgress(progress: BackupProgress): void {
 
   const phaseText = phases[progress.phase];
   const fileProgress =
-    progress.totalFiles > 0
-      ? ` [${progress.filesCompleted}/${progress.totalFiles}]`
-      : '';
+    progress.totalFiles > 0 ? ` [${progress.filesCompleted}/${progress.totalFiles}]` : '';
   const currentFile = progress.currentFile ? ` ${pc.dim(progress.currentFile)}` : '';
 
   // Clear line and print progress
@@ -111,7 +109,10 @@ export function registerBackupCommand(program: Command): void {
   program
     .command('backup')
     .description('Create a full backup of all Cursor chat history')
-    .option('-o, --output <path>', 'Output file path (default: ~/cursor-history-backups/<timestamp>.zip)')
+    .option(
+      '-o, --output <path>',
+      'Output file path (default: ~/cursor-history-backups/<timestamp>.zip)'
+    )
     .option('-f, --force', 'Overwrite existing backup file')
     .action(async (options: BackupCommandOptions, command: Command) => {
       const globalOptions = command.parent?.opts() as { json?: boolean; dataPath?: string };

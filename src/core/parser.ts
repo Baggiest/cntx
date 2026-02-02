@@ -127,9 +127,7 @@ function parseComposerFormat(data: ComposerData, bundle?: CursorChatBundle): Cha
     if (!composer.composerId) continue;
 
     const createdAt = composer.createdAt ? new Date(composer.createdAt) : new Date();
-    const lastUpdatedAt = composer.lastUpdatedAt
-      ? new Date(composer.lastUpdatedAt)
-      : createdAt;
+    const lastUpdatedAt = composer.lastUpdatedAt ? new Date(composer.lastUpdatedAt) : createdAt;
 
     // Try to find messages that fall within this session's time range
     const sessionMessages: Message[] = [];
@@ -172,13 +170,18 @@ function parseComposerFormat(data: ComposerData, bundle?: CursorChatBundle): Cha
       createdAt,
       lastUpdatedAt,
       messageCount: sessionMessages.length || 1,
-      messages: sessionMessages.length > 0 ? sessionMessages : [{
-        id: null,
-        role: 'user',
-        content: composer.name ?? '(Empty session)',
-        timestamp: createdAt,
-        codeBlocks: [],
-      }],
+      messages:
+        sessionMessages.length > 0
+          ? sessionMessages
+          : [
+              {
+                id: null,
+                role: 'user',
+                content: composer.name ?? '(Empty session)',
+                timestamp: createdAt,
+                codeBlocks: [],
+              },
+            ],
       workspaceId: '',
     });
   }
@@ -428,20 +431,63 @@ export function exportToMarkdown(session: ChatSession, workspacePath?: string): 
  * Export a chat session to JSON format
  */
 export function exportToJson(session: ChatSession, workspacePath?: string): string {
-  const exportData = {
+  const exportData: Record<string, unknown> = {
     id: session.id,
     title: session.title,
     createdAt: session.createdAt.toISOString(),
     lastUpdatedAt: session.lastUpdatedAt.toISOString(),
     messageCount: session.messageCount,
     workspacePath: workspacePath ?? null,
-    messages: session.messages.map((m) => ({
+  };
+
+  // Add session-level usage data if available
+  if (session.usage) {
+    const usage: Record<string, unknown> = {};
+    if (session.usage.contextTokensUsed !== undefined) {
+      usage['contextTokensUsed'] = session.usage.contextTokensUsed;
+    }
+    if (session.usage.contextTokenLimit !== undefined) {
+      usage['contextTokenLimit'] = session.usage.contextTokenLimit;
+    }
+    if (session.usage.contextUsagePercent !== undefined) {
+      usage['contextUsagePercent'] = session.usage.contextUsagePercent;
+    }
+    if (session.usage.totalInputTokens !== undefined) {
+      usage['totalInputTokens'] = session.usage.totalInputTokens;
+    }
+    if (session.usage.totalOutputTokens !== undefined) {
+      usage['totalOutputTokens'] = session.usage.totalOutputTokens;
+    }
+    if (Object.keys(usage).length > 0) {
+      exportData['usage'] = usage;
+    }
+  }
+
+  // Map messages with token usage fields
+  exportData['messages'] = session.messages.map((m) => {
+    const msg: Record<string, unknown> = {
       role: m.role,
       content: m.content,
       timestamp: m.timestamp.toISOString(),
       codeBlocks: m.codeBlocks,
-    })),
-  };
+    };
+
+    // Add token usage fields if present (omit if not available)
+    if (m.tokenUsage && (m.tokenUsage.inputTokens > 0 || m.tokenUsage.outputTokens > 0)) {
+      msg['tokenUsage'] = {
+        inputTokens: m.tokenUsage.inputTokens,
+        outputTokens: m.tokenUsage.outputTokens,
+      };
+    }
+    if (m.model) {
+      msg['model'] = m.model;
+    }
+    if (m.durationMs && m.durationMs > 0) {
+      msg['durationMs'] = m.durationMs;
+    }
+
+    return msg;
+  });
 
   return JSON.stringify(exportData, null, 2);
 }

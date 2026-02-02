@@ -20,6 +20,9 @@ import type {
   ListOptions,
   SearchOptions,
   SearchResult,
+  TokenUsage,
+  SessionUsage,
+  ContextWindowStatus,
 } from './types.js';
 import { getCursorDataPath, contractPath, normalizePath, pathsEqual } from '../lib/platform.js';
 import { SessionNotFoundError } from '../lib/errors.js';
@@ -49,7 +52,12 @@ function getGlobalStoragePath(): string {
   const home = homedir();
 
   if (platform === 'win32') {
-    return join(process.env['APPDATA'] ?? join(home, 'AppData', 'Roaming'), 'Cursor', 'User', 'globalStorage');
+    return join(
+      process.env['APPDATA'] ?? join(home, 'AppData', 'Roaming'),
+      'Cursor',
+      'User',
+      'globalStorage'
+    );
   } else if (platform === 'darwin') {
     return join(home, 'Library', 'Application Support', 'Cursor', 'User', 'globalStorage');
   } else {
@@ -133,7 +141,8 @@ async function findWorkspacesFromBackup(backupPath: string): Promise<Workspace[]
 
     const workspaceId = match[1]!;
     // Try to get workspace path from workspace.json, fall back to workspace ID
-    const workspacePath = await readWorkspaceJsonFromBackup(backupPath, workspaceId) ?? `(workspace: ${workspaceId})`;
+    const workspacePath =
+      (await readWorkspaceJsonFromBackup(backupPath, workspaceId)) ?? `(workspace: ${workspaceId})`;
 
     // Count sessions in this workspace
     let sessionCount = 0;
@@ -189,7 +198,10 @@ export function readWorkspaceJson(workspaceDir: string): string | null {
  * @param customDataPath - Custom Cursor data path (for live data)
  * @param backupPath - Path to backup zip file (if reading from backup)
  */
-export async function findWorkspaces(customDataPath?: string, backupPath?: string): Promise<Workspace[]> {
+export async function findWorkspaces(
+  customDataPath?: string,
+  backupPath?: string
+): Promise<Workspace[]> {
   // T028: Support reading from backup
   if (backupPath) {
     return await findWorkspacesFromBackup(backupPath);
@@ -311,7 +323,11 @@ function getChatDataFromDb(db: Database): { data: string; bundle: CursorChatBund
  * @param customDataPath - Custom Cursor data path (for live data)
  * @param backupPath - Path to backup zip file (if reading from backup)
  */
-export async function listSessions(options: ListOptions, customDataPath?: string, backupPath?: string): Promise<ChatSessionSummary[]> {
+export async function listSessions(
+  options: ListOptions,
+  customDataPath?: string,
+  backupPath?: string
+): Promise<ChatSessionSummary[]> {
   // T029: Support reading from backup
   const workspaces = await findWorkspaces(customDataPath, backupPath);
 
@@ -376,7 +392,10 @@ export async function listSessions(options: ListOptions, customDataPath?: string
  * @param customDataPath - Custom Cursor data path (for live data)
  * @param backupPath - Path to backup zip file (if reading from backup)
  */
-export async function listWorkspaces(customDataPath?: string, backupPath?: string): Promise<Workspace[]> {
+export async function listWorkspaces(
+  customDataPath?: string,
+  backupPath?: string
+): Promise<Workspace[]> {
   const workspaces = await findWorkspaces(customDataPath, backupPath);
 
   // Sort by session count descending
@@ -395,7 +414,11 @@ export async function listWorkspaces(customDataPath?: string, backupPath?: strin
  * @param customDataPath - Custom Cursor data path (for live data)
  * @param backupPath - Path to backup zip file (if reading from backup)
  */
-export async function getSession(index: number, customDataPath?: string, backupPath?: string): Promise<ChatSession | null> {
+export async function getSession(
+  index: number,
+  customDataPath?: string,
+  backupPath?: string
+): Promise<ChatSession | null> {
   // T030: Support reading from backup
   const summaries = await listSessions({ limit: 0, all: true }, customDataPath, backupPath);
   const summary = summaries.find((s) => s.index === index);
@@ -428,43 +451,75 @@ export async function getSession(index: number, customDataPath?: string, backupP
 
     if (db) {
       // Check if cursorDiskKV table exists
-      const tableCheck = db.prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='cursorDiskKV'"
-      ).get();
+      const tableCheck = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='cursorDiskKV'")
+        .get();
 
       if (tableCheck) {
         // Get all bubbles for this composer
         const bubbleRows = db
-          .prepare("SELECT key, value FROM cursorDiskKV WHERE key LIKE ? ORDER BY rowid ASC")
+          .prepare('SELECT key, value FROM cursorDiskKV WHERE key LIKE ? ORDER BY rowid ASC')
           .all(`bubbleId:${summary.id}:%`) as { key: string; value: string }[];
+
+        // Get composer data for session-level usage (before closing db)
+        let composerDataRow: { value: string } | undefined;
+        try {
+          composerDataRow = db
+            .prepare('SELECT value FROM cursorDiskKV WHERE key = ?')
+            .get(`composerData:${summary.id}`) as { value: string } | undefined;
+        } catch {
+          // Ignore composer data errors
+        }
 
         db.close();
 
         if (bubbleRows.length > 0) {
-          const messages = bubbleRows.map((row) => {
-            try {
-              const data = JSON.parse(row.value) as {
-                type?: number;
-                createdAt?: string;
-                bubbleId?: string;
-              };
+          const messages = bubbleRows
+            .map((row) => {
+              try {
+                const rawData = JSON.parse(row.value) as Record<string, unknown>;
+                const data = rawData as RawBubbleData & {
+                  type?: number;
+                  createdAt?: string;
+                  bubbleId?: string;
+                };
 
-              const text = extractBubbleText(data);
-              const role = data.type === 2 ? 'assistant' : 'user';
+                const text = extractBubbleText(rawData);
+                const role = data.type === 2 ? 'assistant' : 'user';
 
-              return {
-                id: data.bubbleId ?? row.key.split(':').pop() ?? null,
-                role: role as 'user' | 'assistant',
-                content: text,
-                timestamp: data.createdAt ? new Date(data.createdAt) : new Date(),
-                codeBlocks: [],
-              };
-            } catch {
-              return null;
-            }
-          }).filter((m): m is NonNullable<typeof m> => m !== null && m.content.length > 0);
+                // Extract token usage data
+                const tokenUsage = extractTokenUsage(data);
+                const model = extractModelInfo(data);
+                const durationMs = extractTimingInfo(data);
+
+                return {
+                  id: data.bubbleId ?? row.key.split(':').pop() ?? null,
+                  role: role as 'user' | 'assistant',
+                  content: text,
+                  timestamp: data.createdAt ? new Date(data.createdAt) : new Date(),
+                  codeBlocks: [],
+                  tokenUsage,
+                  model,
+                  durationMs,
+                };
+              } catch {
+                return null;
+              }
+            })
+            .filter((m): m is NonNullable<typeof m> => m !== null && m.content.length > 0);
 
           if (messages.length > 0) {
+            // Extract session-level usage from composer data
+            let sessionUsage: SessionUsage | undefined;
+            if (composerDataRow?.value) {
+              try {
+                const composerData = JSON.parse(composerDataRow.value) as RawComposerData;
+                sessionUsage = extractSessionUsage(composerData, messages);
+              } catch {
+                // Ignore parse errors
+              }
+            }
+
             return {
               id: summary.id,
               index,
@@ -475,6 +530,7 @@ export async function getSession(index: number, customDataPath?: string, backupP
               messages,
               workspaceId: summary.workspaceId,
               workspacePath: summary.workspacePath,
+              usage: sessionUsage,
             };
           }
         }
@@ -589,9 +645,9 @@ export async function listGlobalSessions(): Promise<ChatSessionSummary[]> {
     const db = await openDatabase(dbPath);
 
     // Check if cursorDiskKV table exists
-    const tableCheck = db.prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='cursorDiskKV'"
-    ).get();
+    const tableCheck = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='cursorDiskKV'")
+      .get();
 
     if (!tableCheck) {
       db.close();
@@ -619,14 +675,14 @@ export async function listGlobalSessions(): Promise<ChatSessionSummary[]> {
 
         // Count bubbles for this composer
         const bubbleCount = db
-          .prepare("SELECT COUNT(*) as count FROM cursorDiskKV WHERE key LIKE ?")
+          .prepare('SELECT COUNT(*) as count FROM cursorDiskKV WHERE key LIKE ?')
           .get(`bubbleId:${composerId}:%`) as { count: number };
 
         if (bubbleCount.count === 0) continue;
 
         // Get first bubble for preview
         const firstBubble = db
-          .prepare("SELECT value FROM cursorDiskKV WHERE key LIKE ? ORDER BY rowid ASC LIMIT 1")
+          .prepare('SELECT value FROM cursorDiskKV WHERE key LIKE ? ORDER BY rowid ASC LIMIT 1')
           .get(`bubbleId:${composerId}:%`) as { value: string } | undefined;
 
         let preview = '';
@@ -695,33 +751,58 @@ export async function getGlobalSession(index: number): Promise<ChatSession | nul
 
     // Get all bubbles for this composer
     const bubbleRows = db
-      .prepare("SELECT key, value FROM cursorDiskKV WHERE key LIKE ? ORDER BY rowid ASC")
+      .prepare('SELECT key, value FROM cursorDiskKV WHERE key LIKE ? ORDER BY rowid ASC')
       .all(`bubbleId:${summary.id}:%`) as { key: string; value: string }[];
 
-    db.close();
+    const messages = bubbleRows
+      .map((row) => {
+        try {
+          const rawData = JSON.parse(row.value) as Record<string, unknown>;
+          const data = rawData as RawBubbleData & {
+            type?: number;
+            createdAt?: string;
+            bubbleId?: string;
+          };
 
-    const messages = bubbleRows.map((row) => {
-      try {
-        const data = JSON.parse(row.value) as {
-          type?: number;
-          createdAt?: string;
-          bubbleId?: string;
-        };
+          const text = extractBubbleText(rawData);
+          const role = data.type === 2 ? 'assistant' : 'user';
 
-        const text = extractBubbleText(data);
-        const role = data.type === 2 ? 'assistant' : 'user';
+          // Extract token usage data
+          const tokenUsage = extractTokenUsage(data);
+          const model = extractModelInfo(data);
+          const durationMs = extractTimingInfo(data);
 
-        return {
-          id: data.bubbleId ?? row.key.split(':').pop() ?? null,
-          role: role as 'user' | 'assistant',
-          content: text,
-          timestamp: data.createdAt ? new Date(data.createdAt) : new Date(),
-          codeBlocks: [],
-        };
-      } catch {
-        return null;
+          return {
+            id: data.bubbleId ?? row.key.split(':').pop() ?? null,
+            role: role as 'user' | 'assistant',
+            content: text,
+            timestamp: data.createdAt ? new Date(data.createdAt) : new Date(),
+            codeBlocks: [],
+            tokenUsage,
+            model,
+            durationMs,
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((m): m is NonNullable<typeof m> => m !== null && m.content.length > 0);
+
+    // Try to get composer data for session-level usage
+    let sessionUsage: SessionUsage | undefined;
+    try {
+      const composerRow = db
+        .prepare('SELECT value FROM cursorDiskKV WHERE key = ?')
+        .get(`composerData:${summary.id}`) as { value: string } | undefined;
+      if (composerRow?.value) {
+        const composerData = JSON.parse(composerRow.value) as RawComposerData;
+        sessionUsage = extractSessionUsage(composerData, messages);
       }
-    }).filter((m): m is NonNullable<typeof m> => m !== null && m.content.length > 0);
+    } catch {
+      // Ignore composer data errors
+    }
+
+    db.close();
 
     return {
       id: summary.id,
@@ -732,6 +813,7 @@ export async function getGlobalSession(index: number): Promise<ChatSession | nul
       messageCount: messages.length,
       messages,
       workspaceId: 'global',
+      usage: sessionUsage,
     };
   } catch {
     return null;
@@ -741,15 +823,13 @@ export async function getGlobalSession(index: number): Promise<ChatSession | nul
 /**
  * Format a tool call for display
  */
-function formatToolCall(
-  toolData: {
-    name?: string;
-    params?: string;
-    result?: string;
-    status?: string;
-    additionalData?: { status?: string; userDecision?: string };
-  }
-): string {
+function formatToolCall(toolData: {
+  name?: string;
+  params?: string;
+  result?: string;
+  status?: string;
+  additionalData?: { status?: string; userDecision?: string };
+}): string {
   const lines: string[] = [];
   const toolName = toolData.name ?? 'unknown';
 
@@ -796,7 +876,11 @@ function formatToolCall(
     const path = getParam('path', 'directory', 'targetDirectory');
     if (pattern) lines.push(`Pattern: ${pattern}`);
     if (path) lines.push(`Path: ${path}`);
-  } else if (toolName === 'run_terminal_command' || toolName === 'run_terminal_cmd' || toolName === 'execute_command') {
+  } else if (
+    toolName === 'run_terminal_command' ||
+    toolName === 'run_terminal_cmd' ||
+    toolName === 'execute_command'
+  ) {
     lines.push(`[Tool: Terminal Command]`);
     const cmd = getParam('command', 'cmd');
     if (cmd) lines.push(`Command: ${cmd}`);
@@ -825,8 +909,10 @@ function formatToolCall(
     const oldString = getParam('oldString', 'old_string', 'search', 'searchString');
     const newString = getParam('newString', 'new_string', 'replace', 'replaceString');
     if (oldString || newString) {
-      if (oldString) lines.push(`Old: ${oldString.slice(0, 100)}${oldString.length > 100 ? '...' : ''}`);
-      if (newString) lines.push(`New: ${newString.slice(0, 100)}${newString.length > 100 ? '...' : ''}`);
+      if (oldString)
+        lines.push(`Old: ${oldString.slice(0, 100)}${oldString.length > 100 ? '...' : ''}`);
+      if (newString)
+        lines.push(`New: ${newString.slice(0, 100)}${newString.length > 100 ? '...' : ''}`);
     }
   } else if (toolName === 'create_file' || toolName === 'write_file' || toolName === 'write') {
     lines.push(`[Tool: ${toolName === 'create_file' ? 'Create File' : 'Write File'}]`);
@@ -855,7 +941,11 @@ function formatToolCall(
         }
       } catch {
         // If result is not JSON, show it directly if it's a string
-        if (typeof toolData.result === 'string' && toolData.result.length > 0 && toolData.result.length < 1000) {
+        if (
+          typeof toolData.result === 'string' &&
+          toolData.result.length > 0 &&
+          toolData.result.length < 1000
+        ) {
           lines.push(`Result: ${toolData.result}`);
         }
       }
@@ -871,7 +961,8 @@ function formatToolCall(
   // Add user decision if present (accepted/rejected/pending)
   const userDecision = toolData.additionalData?.userDecision;
   if (userDecision && typeof userDecision === 'string') {
-    const decisionEmoji = userDecision === 'accepted' ? '✓' : userDecision === 'rejected' ? '✗' : '⏳';
+    const decisionEmoji =
+      userDecision === 'accepted' ? '✓' : userDecision === 'rejected' ? '✗' : '⏳';
     lines.push(`User Decision: ${decisionEmoji} ${userDecision}`);
   }
 
@@ -938,7 +1029,9 @@ function formatToolCallWithResult(toolData: {
 
     // Format as tool call header
     const toolName = toolData.name ?? 'write';
-    lines.push(`[Tool: ${toolName === 'write' || toolName === 'write_file' ? 'Write File' : 'Edit File'}]`);
+    lines.push(
+      `[Tool: ${toolName === 'write' || toolName === 'write_file' ? 'Write File' : 'Edit File'}]`
+    );
 
     if (filePath) {
       lines.push(`File: ${filePath}`);
@@ -971,7 +1064,8 @@ function formatToolCallWithResult(toolData: {
   // Add user decision if present
   const userDecision = toolData.additionalData?.userDecision;
   if (userDecision && typeof userDecision === 'string') {
-    const decisionEmoji = userDecision === 'accepted' ? '✓' : userDecision === 'rejected' ? '✗' : '⏳';
+    const decisionEmoji =
+      userDecision === 'accepted' ? '✓' : userDecision === 'rejected' ? '✗' : '⏳';
     lines.push(`User Decision: ${decisionEmoji} ${userDecision}`);
   }
 
@@ -1011,16 +1105,18 @@ function extractBubbleText(data: Record<string, unknown>): string {
   const isAssistant = bubbleType === 2;
 
   // Check for tool call in toolFormerData (with name = tool action)
-  const toolFormerData = data['toolFormerData'] as {
-    name?: string;
-    params?: string;
-    result?: string;
-    rawArgs?: string;
-    status?: string;
-    additionalData?: {
-      status?: string;
-    };
-  } | undefined;
+  const toolFormerData = data['toolFormerData'] as
+    | {
+        name?: string;
+        params?: string;
+        result?: string;
+        rawArgs?: string;
+        status?: string;
+        additionalData?: {
+          status?: string;
+        };
+      }
+    | undefined;
 
   // Check if it's an error - but don't return yet, mark it and continue extraction
   const isError = toolFormerData?.additionalData?.status === 'error';
@@ -1049,7 +1145,9 @@ function extractBubbleText(data: Record<string, unknown>): string {
   }
 
   // Extract codeBlocks content
-  const codeBlocks = data['codeBlocks'] as Array<{ content?: string; languageId?: string }> | undefined;
+  const codeBlocks = data['codeBlocks'] as
+    | Array<{ content?: string; languageId?: string }>
+    | undefined;
   const codeBlockParts: string[] = [];
   if (codeBlocks && Array.isArray(codeBlocks)) {
     for (const cb of codeBlocks) {
@@ -1160,7 +1258,10 @@ function extractBubbleText(data: Record<string, unknown>): string {
         Object.values(obj).forEach(walk);
       }
     } else if (typeof obj === 'string') {
-      if (obj.length > best.length && (obj.includes('\n') || obj.includes('```') || obj.includes('# '))) {
+      if (
+        obj.length > best.length &&
+        (obj.includes('\n') || obj.includes('```') || obj.includes('# '))
+      ) {
         best = obj;
       }
     }
@@ -1173,6 +1274,273 @@ function extractBubbleText(data: Record<string, unknown>): string {
   }
 
   return best;
+}
+
+// ============================================================================
+// Token Usage Extraction Functions
+// ============================================================================
+
+/**
+ * Raw bubble data structure with token-related fields
+ */
+interface RawBubbleData {
+  tokenCount?: {
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+  };
+  modelInfo?: {
+    modelName?: string;
+  };
+  timingInfo?: {
+    clientStartTime?: number;
+    clientEndTime?: number;
+  };
+  contextWindowStatusAtCreation?: {
+    tokensUsed?: number;
+    tokenLimit?: number;
+    percentageRemaining?: number;
+    percentageRemainingFloat?: number;
+  };
+  promptDryRunInfo?: string;
+}
+
+/**
+ * Raw composer data structure with session-level token fields
+ */
+interface RawComposerData {
+  contextTokensUsed?: number;
+  contextTokenLimit?: number;
+  contextUsagePercent?: number;
+}
+
+/**
+ * Extract token usage from a raw bubble.
+ * Tries multiple sources with fallbacks:
+ * 1. tokenCount.inputTokens/outputTokens (camelCase - primary)
+ * 2. usage.input_tokens/output_tokens (snake_case - fallback)
+ * 3. contextWindowStatusAtCreation.tokensUsed (for input estimate on user messages)
+ * 4. promptDryRunInfo.fullConversationTokenCount (client-side estimate)
+ *
+ * @param data - Raw bubble data object
+ * @returns TokenUsage if valid non-zero data exists, undefined otherwise
+ */
+export function extractTokenUsage(data: RawBubbleData): TokenUsage | undefined {
+  // Priority 1: camelCase format (tokenCount.inputTokens/outputTokens)
+  const tokenCount = data.tokenCount;
+  if (tokenCount) {
+    const inputTokens = tokenCount.inputTokens ?? 0;
+    const outputTokens = tokenCount.outputTokens ?? 0;
+    if (inputTokens > 0 || outputTokens > 0) {
+      return { inputTokens, outputTokens };
+    }
+  }
+
+  // Priority 2: snake_case format (usage.input_tokens/output_tokens)
+  const usage = data.usage;
+  if (usage) {
+    const inputTokens = usage.input_tokens ?? 0;
+    const outputTokens = usage.output_tokens ?? 0;
+    if (inputTokens > 0 || outputTokens > 0) {
+      return { inputTokens, outputTokens };
+    }
+  }
+
+  // Priority 3: contextWindowStatusAtCreation.tokensUsed (user messages)
+  // This gives us the context window usage at message creation - use as input estimate
+  const contextStatus = data.contextWindowStatusAtCreation;
+  if (contextStatus?.tokensUsed && contextStatus.tokensUsed > 0) {
+    return { inputTokens: contextStatus.tokensUsed, outputTokens: 0 };
+  }
+
+  // Priority 4: promptDryRunInfo (client-side estimate, double-encoded JSON)
+  if (data.promptDryRunInfo && typeof data.promptDryRunInfo === 'string') {
+    try {
+      const parsed = JSON.parse(data.promptDryRunInfo) as {
+        fullConversationTokenCount?: { numTokens?: number };
+        userMessageTokenCount?: { numTokens?: number };
+      };
+      const fullConvTokens = parsed.fullConversationTokenCount?.numTokens ?? 0;
+      const userMsgTokens = parsed.userMessageTokenCount?.numTokens ?? 0;
+      // Use fullConversationTokenCount as input estimate
+      if (fullConvTokens > 0) {
+        return { inputTokens: fullConvTokens, outputTokens: 0 };
+      }
+      if (userMsgTokens > 0) {
+        return { inputTokens: userMsgTokens, outputTokens: 0 };
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Extract model info from a raw bubble.
+ *
+ * @param data - Raw bubble data object
+ * @returns Model name string if present, undefined otherwise
+ */
+export function extractModelInfo(data: RawBubbleData): string | undefined {
+  const modelName = data.modelInfo?.modelName;
+  if (modelName && typeof modelName === 'string' && modelName.trim()) {
+    return modelName;
+  }
+  return undefined;
+}
+
+/**
+ * Extract timing info and calculate duration from a raw bubble.
+ *
+ * @param data - Raw bubble data object
+ * @returns Duration in milliseconds if both start/end times exist, undefined otherwise
+ */
+export function extractTimingInfo(data: RawBubbleData): number | undefined {
+  const timingInfo = data.timingInfo;
+  if (!timingInfo) return undefined;
+
+  const startTime = timingInfo.clientStartTime;
+  const endTime = timingInfo.clientEndTime;
+
+  if (typeof startTime !== 'number' || typeof endTime !== 'number') {
+    return undefined;
+  }
+
+  const duration = endTime - startTime;
+  return duration > 0 ? duration : undefined;
+}
+
+/**
+ * Extract context window status from a raw bubble.
+ * Only applicable to user messages (type 1).
+ *
+ * @param data - Raw bubble data object
+ * @returns ContextWindowStatus if data exists, undefined otherwise
+ */
+export function extractContextWindowStatus(data: RawBubbleData): ContextWindowStatus | undefined {
+  const status = data.contextWindowStatusAtCreation;
+  if (!status) return undefined;
+
+  const tokensUsed = status.tokensUsed;
+  const tokenLimit = status.tokenLimit;
+
+  if (typeof tokensUsed !== 'number' || typeof tokenLimit !== 'number') {
+    return undefined;
+  }
+
+  // Prefer float percentage if available, else use integer
+  const percentageRemaining = status.percentageRemainingFloat ?? status.percentageRemaining;
+  if (typeof percentageRemaining !== 'number') {
+    return undefined;
+  }
+
+  return { tokensUsed, tokenLimit, percentageRemaining };
+}
+
+/**
+ * Parsed promptDryRunInfo data
+ */
+interface PromptDryRunInfo {
+  fullConversationTokenCount?: number;
+  userMessageTokenCount?: number;
+}
+
+/**
+ * Extract promptDryRunInfo from a raw bubble.
+ * Parses the double-encoded JSON string.
+ *
+ * @param data - Raw bubble data object
+ * @returns Parsed info with token counts, undefined if not available
+ */
+export function extractPromptDryRunInfo(data: RawBubbleData): PromptDryRunInfo | undefined {
+  const promptDryRunInfo = data.promptDryRunInfo;
+  if (!promptDryRunInfo || typeof promptDryRunInfo !== 'string') {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(promptDryRunInfo) as {
+      fullConversationTokenCount?: { numTokens?: number };
+      userMessageTokenCount?: { numTokens?: number };
+    };
+
+    const fullConversationTokenCount = parsed.fullConversationTokenCount?.numTokens;
+    const userMessageTokenCount = parsed.userMessageTokenCount?.numTokens;
+
+    if (
+      typeof fullConversationTokenCount !== 'number' &&
+      typeof userMessageTokenCount !== 'number'
+    ) {
+      return undefined;
+    }
+
+    return {
+      fullConversationTokenCount:
+        typeof fullConversationTokenCount === 'number' ? fullConversationTokenCount : undefined,
+      userMessageTokenCount:
+        typeof userMessageTokenCount === 'number' ? userMessageTokenCount : undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Extract session-level usage summary from composer data.
+ *
+ * @param composerData - Raw composer data object
+ * @param messages - Array of messages with token usage (for aggregation)
+ * @returns SessionUsage with available fields populated
+ */
+export function extractSessionUsage(
+  composerData: RawComposerData | undefined,
+  messages: Array<{ tokenUsage?: TokenUsage }>
+): SessionUsage | undefined {
+  let hasData = false;
+  const result: SessionUsage = {};
+
+  // Extract from composer data
+  if (composerData) {
+    if (typeof composerData.contextTokensUsed === 'number') {
+      result.contextTokensUsed = composerData.contextTokensUsed;
+      hasData = true;
+    }
+    if (typeof composerData.contextTokenLimit === 'number') {
+      result.contextTokenLimit = composerData.contextTokenLimit;
+      hasData = true;
+    }
+    if (typeof composerData.contextUsagePercent === 'number') {
+      // Normalize to float (may be int or float)
+      result.contextUsagePercent = composerData.contextUsagePercent;
+      hasData = true;
+    }
+  }
+
+  // Aggregate token usage from messages
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let hasTokenData = false;
+
+  for (const msg of messages) {
+    if (msg.tokenUsage) {
+      totalInputTokens += msg.tokenUsage.inputTokens;
+      totalOutputTokens += msg.tokenUsage.outputTokens;
+      hasTokenData = true;
+    }
+  }
+
+  if (hasTokenData) {
+    result.totalInputTokens = totalInputTokens;
+    result.totalOutputTokens = totalOutputTokens;
+    hasData = true;
+  }
+
+  return hasData ? result : undefined;
 }
 
 // ============================================================================
@@ -1198,7 +1566,9 @@ export async function findWorkspaceForSession(
       if (!result) continue;
 
       // Parse the composerData - could be new format with allComposers or legacy format
-      const parsed = JSON.parse(result.data) as { allComposers?: Array<{ composerId?: string }> } | Array<{ composerId?: string }>;
+      const parsed = JSON.parse(result.data) as
+        | { allComposers?: Array<{ composerId?: string }> }
+        | Array<{ composerId?: string }>;
 
       // Handle new format with allComposers array
       let composers: Array<{ composerId?: string }>;
@@ -1263,9 +1633,9 @@ export interface ComposerDataResult {
  */
 export function getComposerData(db: Database): ComposerDataResult | null {
   try {
-    const row = db.prepare('SELECT value FROM ItemTable WHERE key = ?').get('composer.composerData') as
-      | { value: string }
-      | undefined;
+    const row = db
+      .prepare('SELECT value FROM ItemTable WHERE key = ?')
+      .get('composer.composerData') as { value: string } | undefined;
 
     if (!row?.value) {
       return null;
@@ -1275,7 +1645,9 @@ export function getComposerData(db: Database): ComposerDataResult | null {
 
     // Check if new format with allComposers
     if (rawData && typeof rawData === 'object' && 'allComposers' in rawData) {
-      const data = rawData as { allComposers: Array<{ composerId?: string; [key: string]: unknown }> };
+      const data = rawData as {
+        allComposers: Array<{ composerId?: string; [key: string]: unknown }>;
+      };
       return {
         composers: data.allComposers ?? [],
         rawData,
@@ -1313,7 +1685,7 @@ export function updateComposerData(
   if (isNewFormat) {
     // Preserve the original structure, just update allComposers
     if (originalRawData && typeof originalRawData === 'object') {
-      dataToWrite = { ...originalRawData as object, allComposers: composers };
+      dataToWrite = { ...(originalRawData as object), allComposers: composers };
     } else {
       dataToWrite = { allComposers: composers };
     }
@@ -1323,7 +1695,10 @@ export function updateComposerData(
   }
 
   const jsonValue = JSON.stringify(dataToWrite);
-  db.prepare('UPDATE ItemTable SET value = ? WHERE key = ?').run(jsonValue, 'composer.composerData');
+  db.prepare('UPDATE ItemTable SET value = ? WHERE key = ?').run(
+    jsonValue,
+    'composer.composerData'
+  );
 }
 
 /**
@@ -1339,7 +1714,6 @@ export async function resolveSessionIdentifiers(
   input: string | number | (string | number)[],
   customDataPath?: string
 ): Promise<string[]> {
-
   // Normalize input to array
   let identifiers: (string | number)[];
 
@@ -1380,4 +1754,3 @@ export async function resolveSessionIdentifiers(
 
   return resolvedIds;
 }
-

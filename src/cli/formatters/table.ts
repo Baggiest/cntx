@@ -3,7 +3,15 @@
  */
 
 import pc from 'picocolors';
-import type { ChatSessionSummary, Workspace, ChatSession, SearchResult, MessageType } from '../../core/types.js';
+import type {
+  ChatSessionSummary,
+  Workspace,
+  ChatSession,
+  SearchResult,
+  MessageType,
+  TokenUsage,
+  SessionUsage,
+} from '../../core/types.js';
 import { MESSAGE_TYPES } from '../../core/types.js';
 
 /**
@@ -261,7 +269,12 @@ function formatToolCallDisplay(content: string, fullTool: boolean): string {
       // Tool header
       const toolName = line.replace('[Tool:', '').replace(']', '').trim();
       result.push(pc.magenta(pc.bold(`🔧 ${toolName}`)));
-    } else if (line.startsWith('File:') || line.startsWith('Directory:') || line.startsWith('Command:') || line.startsWith('Target:')) {
+    } else if (
+      line.startsWith('File:') ||
+      line.startsWith('Directory:') ||
+      line.startsWith('Command:') ||
+      line.startsWith('Target:')
+    ) {
       // Target line - truncate command if not fullTool
       if (line.startsWith('Command:') && !fullTool) {
         const cmd = line.replace('Command:', '').trim();
@@ -307,7 +320,10 @@ function formatToolCallDisplay(content: string, fullTool: boolean): string {
         result.push(pc.dim('   Content: ') + pc.gray(preview));
       } else {
         // Show truncated content (default: 100 chars)
-        result.push(pc.dim('   Content: ') + pc.gray(preview.slice(0, 100) + (preview.length > 100 ? '...' : '')));
+        result.push(
+          pc.dim('   Content: ') +
+            pc.gray(preview.slice(0, 100) + (preview.length > 100 ? '...' : ''))
+        );
       }
     } else if (line.startsWith('Result:') || line.startsWith('Output:')) {
       // Tool result/output preview
@@ -319,7 +335,10 @@ function formatToolCallDisplay(content: string, fullTool: boolean): string {
         result.push(pc.dim('   ' + prefix + ' ') + pc.gray(preview));
       } else {
         // Show truncated result (default: 300 chars)
-        result.push(pc.dim('   ' + prefix + ' ') + pc.gray(preview.slice(0, 300) + (preview.length > 300 ? '...' : '')));
+        result.push(
+          pc.dim('   ' + prefix + ' ') +
+            pc.gray(preview.slice(0, 300) + (preview.length > 300 ? '...' : ''))
+        );
       }
     } else {
       result.push('   ' + line);
@@ -327,6 +346,116 @@ function formatToolCallDisplay(content: string, fullTool: boolean): string {
   }
 
   return result.join('\n');
+}
+
+// ============================================================================
+// Token Usage Formatting Functions
+// ============================================================================
+
+/**
+ * Format token count for display (e.g., 131373 -> "131k")
+ */
+export function formatTokenCount(tokens: number): string {
+  if (tokens < 1000) {
+    return String(tokens);
+  }
+  if (tokens < 1000000) {
+    // Show with k suffix, 1 decimal for values like 1.5k
+    const k = tokens / 1000;
+    return k >= 10 ? `${Math.round(k)}k` : `${k.toFixed(1).replace(/\.0$/, '')}k`;
+  }
+  // Show with M suffix for millions
+  const m = tokens / 1000000;
+  return `${m.toFixed(1).replace(/\.0$/, '')}M`;
+}
+
+/**
+ * Format duration in milliseconds for display
+ */
+export function formatDuration(ms: number): string {
+  if (ms < 1000) {
+    return `${Math.round(ms)}ms`;
+  }
+  if (ms < 60000) {
+    // Show as seconds with 1 decimal
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  // Show as minutes with 1 decimal
+  return `${(ms / 60000).toFixed(1)}m`;
+}
+
+/**
+ * Format usage badge for CLI output
+ * Format: [model input→output duration]
+ */
+export function formatUsageBadge(
+  model?: string,
+  tokenUsage?: TokenUsage,
+  durationMs?: number
+): string {
+  const parts: string[] = [];
+
+  if (model) {
+    parts.push(model);
+  }
+
+  if (tokenUsage && (tokenUsage.inputTokens > 0 || tokenUsage.outputTokens > 0)) {
+    parts.push(
+      `${formatTokenCount(tokenUsage.inputTokens)}→${formatTokenCount(tokenUsage.outputTokens)}`
+    );
+  }
+
+  if (durationMs && durationMs > 0) {
+    parts.push(formatDuration(durationMs));
+  }
+
+  if (parts.length === 0) {
+    return '';
+  }
+
+  return pc.dim(`[${parts.join(' ')}]`);
+}
+
+/**
+ * Format session usage summary for CLI output
+ */
+export function formatSessionSummary(usage: SessionUsage): string {
+  const lines: string[] = [];
+  const parts: string[] = [];
+
+  // Context window usage
+  if (usage.contextTokensUsed !== undefined && usage.contextTokenLimit !== undefined) {
+    const percent =
+      usage.contextUsagePercent !== undefined
+        ? `${usage.contextUsagePercent.toFixed(1).replace(/\.0$/, '')}%`
+        : `${((usage.contextTokensUsed / usage.contextTokenLimit) * 100).toFixed(1).replace(/\.0$/, '')}%`;
+    parts.push(
+      `Context: ${formatTokenCount(usage.contextTokensUsed)} / ${formatTokenCount(usage.contextTokenLimit)} (${percent})`
+    );
+  }
+
+  // Total token counts
+  if (usage.totalInputTokens !== undefined || usage.totalOutputTokens !== undefined) {
+    const input = usage.totalInputTokens ?? 0;
+    const output = usage.totalOutputTokens ?? 0;
+    parts.push(`Total tokens: ${formatTokenCount(input)} in / ${formatTokenCount(output)} out`);
+  }
+
+  if (parts.length === 0) {
+    return '';
+  }
+
+  // Build summary box
+  const maxWidth = Math.max(...parts.map((p) => p.length));
+  const boxWidth = Math.max(maxWidth + 4, 40);
+
+  lines.push(pc.dim('┌─ Session Usage ' + '─'.repeat(boxWidth - 17) + '┐'));
+  for (const part of parts) {
+    lines.push(pc.dim('│ ') + part + ' '.repeat(boxWidth - part.length - 3) + pc.dim('│'));
+  }
+  lines.push(pc.dim('└' + '─'.repeat(boxWidth - 1) + '┘'));
+
+  return lines.join('\n');
 }
 
 /**
@@ -407,13 +536,18 @@ export function formatSessionDetail(
     // Format timestamps
     const timestampDisplay =
       timestamps.length > 1
-        ? pc.dim(`${timestamps.map((t) => formatTime(t)).join(', ')} `) + pc.yellow(`(×${timestamps.length})`)
+        ? pc.dim(`${timestamps.map((t) => formatTime(t)).join(', ')} `) +
+          pc.yellow(`(×${timestamps.length})`)
         : pc.dim(formatTime(message.timestamp));
+
+    // Get usage badge for this message (if available)
+    const usageBadge = formatUsageBadge(message.model, message.tokenUsage, message.durationMs);
 
     // Check if this is a tool call
     if (isToolCall(message.content)) {
       lines.push(`${pc.cyan(pc.bold('Tool:'))} ${timestampDisplay}`);
       lines.push(formatToolCallDisplay(message.content, fullTool));
+      if (usageBadge) lines.push(usageBadge);
       lines.push('');
       lines.push(pc.dim('─'.repeat(40)));
       lines.push('');
@@ -425,6 +559,7 @@ export function formatSessionDetail(
     if (isError(message.content)) {
       lines.push(`${pc.red(pc.bold('Error:'))} ${timestampDisplay}`);
       lines.push(formatErrorDisplay(message.content, fullError));
+      if (usageBadge) lines.push(usageBadge);
       lines.push('');
       lines.push(pc.dim('─'.repeat(40)));
       lines.push('');
@@ -436,6 +571,7 @@ export function formatSessionDetail(
     if (isThinking(message.content)) {
       lines.push(`${pc.magenta(pc.bold('Thinking:'))} ${timestampDisplay}`);
       lines.push(formatThinkingDisplay(message.content, fullThinking));
+      if (usageBadge) lines.push(usageBadge);
       lines.push('');
       lines.push(pc.dim('─'.repeat(40)));
       lines.push('');
@@ -459,11 +595,25 @@ export function formatSessionDetail(
       lines.push(message.content);
     }
 
+    // Append usage badge after content
+    if (usageBadge) {
+      lines.push(usageBadge);
+    }
+
     lines.push('');
     lines.push(pc.dim('─'.repeat(40)));
     lines.push('');
 
     i = j;
+  }
+
+  // Add session-level usage summary at the bottom (if available)
+  if (session.usage) {
+    const summary = formatSessionSummary(session.usage);
+    if (summary) {
+      lines.push('');
+      lines.push(summary);
+    }
   }
 
   return lines.join('\n');

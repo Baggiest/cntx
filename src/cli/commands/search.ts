@@ -58,7 +58,11 @@ export function registerSearchCommand(program: Command): void {
           process.exit(3);
         }
         if (validation.status === 'warnings' && !useJson) {
-          console.error(pc.yellow(`Warning: Backup has integrity issues (${validation.corruptedFiles.length} corrupted files)`));
+          console.error(
+            pc.yellow(
+              `Warning: Backup has integrity issues (${validation.corruptedFiles.length} corrupted files)`
+            )
+          );
           console.error(pc.dim('Continuing with intact files...\n'));
         }
       }

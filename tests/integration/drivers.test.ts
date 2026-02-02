@@ -152,7 +152,15 @@ function runDriverTests(driverName: string, getDriver: () => Promise<DatabaseDri
   });
 }
 
-runDriverTests('better-sqlite3', async () => betterSqlite3Driver);
+// Only run better-sqlite3 tests if available (native bindings may not work)
+const betterSqlite3Available = await betterSqlite3Driver.isAvailable();
+if (betterSqlite3Available) {
+  runDriverTests('better-sqlite3', async () => betterSqlite3Driver);
+} else {
+  describe.skip('better-sqlite3 (not available)', () => {
+    it('skipped - native bindings not available', () => {});
+  });
+}
 
 // Only run node:sqlite tests if available (Node.js 22.5+)
 const nodeSqliteAvailable = await nodeSqliteDriver.isAvailable();

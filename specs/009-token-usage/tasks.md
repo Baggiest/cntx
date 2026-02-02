@@ -19,7 +19,7 @@
 
 **Purpose**: Add new types to core and prepare extraction utilities
 
-- [ ] T001 Add `TokenUsage`, `SessionUsage`, and `ContextWindowStatus` interfaces to `src/core/types.ts`
+- [x] T001 Add `TokenUsage`, `SessionUsage`, and `ContextWindowStatus` interfaces to `src/core/types.ts`
 
 ---
 
@@ -29,16 +29,16 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 Implement `extractTokenUsage()` function in `src/core/storage.ts` — handles both camelCase and snake_case formats
-- [ ] T003 Implement `extractModelInfo()` function in `src/core/storage.ts` — extracts `modelInfo.modelName`
-- [ ] T004 Implement `extractTimingInfo()` function in `src/core/storage.ts` — calculates duration from `timingInfo`
-- [ ] T005 Implement `extractSessionUsage()` function in `src/core/storage.ts` — extracts from composer data and aggregates message tokens; must handle both int and float `contextUsagePercent`
-- [ ] T006 Implement `extractPromptDryRunInfo()` function in `src/core/storage.ts` — parses double-encoded JSON string to extract `fullConversationTokenCount.numTokens` and `userMessageTokenCount.numTokens`
-- [ ] T007 Extend `Message` interface with optional `tokenUsage`, `model`, `durationMs` fields in `src/core/types.ts`
-- [ ] T008 Extend `ChatSession` interface with optional `usage: SessionUsage` field in `src/core/types.ts`
-- [ ] T009 Update bubble extraction in `src/core/storage.ts` to call new extraction functions and populate Message fields
+- [x] T002 Implement `extractTokenUsage()` function in `src/core/storage.ts` — handles both camelCase and snake_case formats, plus fallbacks to contextWindowStatusAtCreation and promptDryRunInfo
+- [x] T003 Implement `extractModelInfo()` function in `src/core/storage.ts` — extracts `modelInfo.modelName`
+- [x] T004 Implement `extractTimingInfo()` function in `src/core/storage.ts` — calculates duration from `timingInfo`
+- [x] T005 Implement `extractSessionUsage()` function in `src/core/storage.ts` — extracts from composer data and aggregates message tokens; must handle both int and float `contextUsagePercent`
+- [x] T006 Implement `extractPromptDryRunInfo()` function in `src/core/storage.ts` — parses double-encoded JSON string to extract `fullConversationTokenCount.numTokens` and `userMessageTokenCount.numTokens`
+- [x] T007 Extend `Message` interface with optional `tokenUsage`, `model`, `durationMs` fields in `src/core/types.ts`
+- [x] T008 Extend `ChatSession` interface with optional `usage: SessionUsage` field in `src/core/types.ts`
+- [x] T009 Update bubble extraction in `src/core/storage.ts` to call new extraction functions and populate Message fields
 
-**Checkpoint**: Foundation ready - extraction logic complete, types extended
+**Checkpoint**: Foundation ready - extraction logic complete, types extended ✅
 
 ---
 
@@ -50,13 +50,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T010 [P] [US1] Implement `formatTokenCount()` helper in `src/cli/formatters/table.ts` — formats 131373 as "131k"
-- [ ] T011 [P] [US1] Implement `formatDuration()` helper in `src/cli/formatters/table.ts` — formats 2300 as "2.3s"
-- [ ] T012 [US1] Implement `formatUsageBadge()` in `src/cli/formatters/table.ts` — creates `[model input→output duration]` badge string
-- [ ] T013 [US1] Update `formatSessionDetail()` in `src/cli/formatters/table.ts` to append usage badge after each message content
-- [ ] T014 [US1] Ensure badge is omitted when message has no token data (zero or missing values)
+- [x] T010 [P] [US1] Implement `formatTokenCount()` helper in `src/cli/formatters/table.ts` — formats 131373 as "131k"
+- [x] T011 [P] [US1] Implement `formatDuration()` helper in `src/cli/formatters/table.ts` — formats 2300 as "2.3s"
+- [x] T012 [US1] Implement `formatUsageBadge()` in `src/cli/formatters/table.ts` — creates `[model input→output duration]` badge string
+- [x] T013 [US1] Update `formatSessionDetail()` in `src/cli/formatters/table.ts` to append usage badge after each message content
+- [x] T014 [US1] Ensure badge is omitted when message has no token data (zero or missing values)
 
-**Checkpoint**: User Story 1 complete — token badges visible in CLI output
+**Checkpoint**: User Story 1 complete — token badges visible in CLI output ✅
 
 ---
 
@@ -68,11 +68,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Handle edge case: badge with model but no token data (show model only)
-- [ ] T016 [US2] Handle edge case: badge with tokens but no model (show tokens only)
-- [ ] T017 [US2] Handle edge case: badge with duration but no tokens (show duration only)
+- [x] T015 [US2] Handle edge case: badge with model but no token data (show model only)
+- [x] T016 [US2] Handle edge case: badge with tokens but no model (show tokens only)
+- [x] T017 [US2] Handle edge case: badge with duration but no tokens (show duration only)
 
-**Checkpoint**: User Story 2 complete — model and timing visible in badges
+**Checkpoint**: User Story 2 complete — model and timing visible in badges ✅
 
 ---
 
@@ -84,12 +84,12 @@
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Implement `formatSessionSummary()` in `src/cli/formatters/table.ts` — formats session usage as summary block
-- [ ] T019 [US3] Update `formatSessionDetail()` in `src/cli/formatters/table.ts` to render session summary at the bottom when usage data exists
-- [ ] T020 [US3] Ensure summary is omitted when session has no usage data
-- [ ] T021 [US3] Format context usage as "111k / 272k (41%)" style; handle both int and float `contextUsagePercent` by rounding to one decimal place
+- [x] T018 [US3] Implement `formatSessionSummary()` in `src/cli/formatters/table.ts` — formats session usage as summary block
+- [x] T019 [US3] Update `formatSessionDetail()` in `src/cli/formatters/table.ts` to render session summary at the bottom when usage data exists
+- [x] T020 [US3] Ensure summary is omitted when session has no usage data
+- [x] T021 [US3] Format context usage as "111k / 272k (41%)" style; handle both int and float `contextUsagePercent` by rounding to one decimal place
 
-**Checkpoint**: User Story 3 complete — session summary visible in CLI output
+**Checkpoint**: User Story 3 complete — session summary visible in CLI output ✅
 
 ---
 
@@ -101,13 +101,13 @@
 
 ### Implementation for User Story 4
 
-- [ ] T022 [P] [US4] Add `TokenUsage` interface to `src/lib/types.ts` (public library types)
-- [ ] T023 [P] [US4] Add `SessionUsage` interface to `src/lib/types.ts`
-- [ ] T024 [US4] Extend library `Message` interface with `tokenUsage?`, `model?`, `durationMs?` fields in `src/lib/types.ts`
-- [ ] T025 [US4] Extend library `Session` interface with `usage?: SessionUsage` field in `src/lib/types.ts`
-- [ ] T026 [US4] Update `getSession()` in `src/lib/index.ts` to map core types to library types with usage fields
+- [x] T022 [P] [US4] Add `TokenUsage` interface to `src/lib/types.ts` (public library types)
+- [x] T023 [P] [US4] Add `SessionUsage` interface to `src/lib/types.ts`
+- [x] T024 [US4] Extend library `Message` interface with `tokenUsage?`, `model?`, `durationMs?` fields in `src/lib/types.ts`
+- [x] T025 [US4] Extend library `Session` interface with `usage?: SessionUsage` field in `src/lib/types.ts`
+- [x] T026 [US4] Update `getSession()` in `src/lib/index.ts` to map core types to library types with usage fields
 
-**Checkpoint**: User Story 4 complete — library API exposes all token data
+**Checkpoint**: User Story 4 complete — library API exposes all token data ✅
 
 ---
 
@@ -119,12 +119,12 @@
 
 ### Implementation for User Story 5
 
-- [ ] T027 [US5] Update JSON formatter in `src/cli/formatters/json.ts` to include message-level token fields
-- [ ] T028 [US5] Update JSON formatter to include session-level usage field
-- [ ] T029 [US5] Ensure null/zero token fields are omitted from JSON output (not included as null)
-- [ ] T030 [US5] Update `exportToJson()` in `src/core/parser.ts` to include usage data
+- [x] T027 [US5] Update JSON formatter in `src/cli/formatters/json.ts` to include message-level token fields
+- [x] T028 [US5] Update JSON formatter to include session-level usage field
+- [x] T029 [US5] Ensure null/zero token fields are omitted from JSON output (not included as null)
+- [x] T030 [US5] Update `exportToJson()` in `src/core/parser.ts` to include usage data
 
-**Checkpoint**: User Story 5 complete — JSON output contains all usage data
+**Checkpoint**: User Story 5 complete — JSON output contains all usage data ✅
 
 ---
 
@@ -136,7 +136,7 @@
 - [ ] T032 [P] Add unit tests for `extractTokenUsage()` camelCase/snake_case handling in `tests/unit/token-usage.test.ts`
 - [ ] T033 [P] Add unit tests for `formatTokenCount()` and `formatDuration()` in `tests/unit/token-usage.test.ts`
 - [ ] T034 [P] Add unit tests for edge cases: zero values, missing fields, partial timing data
-- [ ] T035 Update CLAUDE.md Recent Changes section with 009-token-usage feature summary
+- [x] T035 Update CLAUDE.md Recent Changes section with 009-token-usage feature summary
 - [ ] T036 Run `npm run build && npm test` to verify all tests pass
 - [ ] T037 Manual validation: run `cursor-history show 1` on real Cursor data and verify output
 

@@ -26,7 +26,11 @@ interface NodeSqliteDatabase {
 
 interface NodeSqliteModule {
   DatabaseSync: new (path: string, options?: { open?: boolean }) => NodeSqliteDatabase;
-  backup: (sourceDb: NodeSqliteDatabase, destPath: string, options?: { rate?: number }) => Promise<number>;
+  backup: (
+    sourceDb: NodeSqliteDatabase,
+    destPath: string,
+    options?: { rate?: number }
+  ) => Promise<number>;
 }
 
 // Lazy-loaded node:sqlite module

@@ -54,6 +54,8 @@ export interface ChatSession {
   messages: Message[];
   workspaceId: string;
   workspacePath?: string;
+  /** Session-level token usage summary (optional, when available) */
+  usage?: SessionUsage;
 }
 
 /**
@@ -69,6 +71,12 @@ export interface Message {
   toolCalls?: ToolCall[];
   /** AI reasoning/thinking text (optional, assistant-only) */
   thinking?: string;
+  /** Token usage for this message (optional, when available from bubble data) */
+  tokenUsage?: TokenUsage;
+  /** AI model name used for this message (optional, assistant-only) */
+  model?: string;
+  /** Response duration in milliseconds (optional, assistant-only) */
+  durationMs?: number;
   /** Metadata about message processing (optional) */
   metadata?: {
     /** Whether message data was partially corrupted */
@@ -442,4 +450,46 @@ export interface BackupInfo {
   manifest?: BackupManifest;
   /** Error if backup is invalid or corrupted */
   error?: string;
+}
+
+// ============================================================================
+// Token Usage Types
+// ============================================================================
+
+/**
+ * Token usage for a single message (input/output tokens consumed)
+ */
+export interface TokenUsage {
+  /** Number of input tokens (prompt tokens) */
+  inputTokens: number;
+  /** Number of output tokens (completion tokens) */
+  outputTokens: number;
+}
+
+/**
+ * Session-level usage summary (aggregated from messages and composer data)
+ */
+export interface SessionUsage {
+  /** Context tokens used (from composer data) */
+  contextTokensUsed?: number;
+  /** Context token limit (from composer data) */
+  contextTokenLimit?: number;
+  /** Context usage percentage (may be int or float, normalize to float) */
+  contextUsagePercent?: number;
+  /** Total input tokens across all messages */
+  totalInputTokens?: number;
+  /** Total output tokens across all messages */
+  totalOutputTokens?: number;
+}
+
+/**
+ * Context window status at message creation time
+ */
+export interface ContextWindowStatus {
+  /** Number of tokens used in context window */
+  tokensUsed: number;
+  /** Maximum token limit for context window */
+  tokenLimit: number;
+  /** Percentage of context window remaining (0-100) */
+  percentageRemaining: number;
 }

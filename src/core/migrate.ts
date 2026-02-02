@@ -52,7 +52,12 @@ function getGlobalStoragePath(): string {
   const home = homedir();
 
   if (platform === 'win32') {
-    return join(process.env['APPDATA'] ?? join(home, 'AppData', 'Roaming'), 'Cursor', 'User', 'globalStorage');
+    return join(
+      process.env['APPDATA'] ?? join(home, 'AppData', 'Roaming'),
+      'Cursor',
+      'User',
+      'globalStorage'
+    );
   } else if (platform === 'darwin') {
     return join(home, 'Library', 'Application Support', 'Cursor', 'User', 'globalStorage');
   } else {
@@ -181,13 +186,17 @@ function transformCodeBlockUri(
     const transformed = transformPath(uri._fsPath, sourcePrefix, destPrefix);
     if (transformed !== null) {
       if (debug) {
-        console.error(`[DEBUG] codeBlocks[${blockIndex}].uri._fsPath: ${uri._fsPath} -> ${transformed}`);
+        console.error(
+          `[DEBUG] codeBlocks[${blockIndex}].uri._fsPath: ${uri._fsPath} -> ${transformed}`
+        );
       }
       uri._fsPath = transformed;
       result.transformed++;
     } else {
       if (debug) {
-        console.error(`[SKIP] codeBlocks[${blockIndex}].uri._fsPath: ${uri._fsPath} (outside workspace)`);
+        console.error(
+          `[SKIP] codeBlocks[${blockIndex}].uri._fsPath: ${uri._fsPath} (outside workspace)`
+        );
       }
       result.skipped++;
     }
@@ -203,13 +212,17 @@ function transformCodeBlockUri(
       if (transformed !== null) {
         const newFormatted = fileUrlPrefix + transformed;
         if (debug) {
-          console.error(`[DEBUG] codeBlocks[${blockIndex}].uri._formatted: ${uri._formatted} -> ${newFormatted}`);
+          console.error(
+            `[DEBUG] codeBlocks[${blockIndex}].uri._formatted: ${uri._formatted} -> ${newFormatted}`
+          );
         }
         uri._formatted = newFormatted;
         result.transformed++;
       } else {
         if (debug) {
-          console.error(`[SKIP] codeBlocks[${blockIndex}].uri._formatted: ${uri._formatted} (outside workspace)`);
+          console.error(
+            `[SKIP] codeBlocks[${blockIndex}].uri._formatted: ${uri._formatted} (outside workspace)`
+          );
         }
         result.skipped++;
       }
@@ -328,9 +341,9 @@ function copyBubbleDataInGlobalStorage(
 
   try {
     // 1. Copy composerData entry with new ID
-    const composerDataRow = db.prepare(
-      "SELECT value FROM cursorDiskKV WHERE key = ?"
-    ).get(`composerData:${oldComposerId}`) as { value: string } | undefined;
+    const composerDataRow = db
+      .prepare('SELECT value FROM cursorDiskKV WHERE key = ?')
+      .get(`composerData:${oldComposerId}`) as { value: string } | undefined;
 
     if (composerDataRow) {
       const composerData = JSON.parse(composerDataRow.value);
@@ -342,7 +355,8 @@ function copyBubbleDataInGlobalStorage(
       const oldBubbleHeaders = composerData.fullConversationHeadersOnly || [];
 
       // Generate new bubble IDs and build the mapping
-      const newBubbleHeaders: Array<{ bubbleId: string; type: number; serverBubbleId?: string }> = [];
+      const newBubbleHeaders: Array<{ bubbleId: string; type: number; serverBubbleId?: string }> =
+        [];
       for (const header of oldBubbleHeaders) {
         if (header.bubbleId) {
           const newBubbleId = generateSessionId();
@@ -356,15 +370,16 @@ function copyBubbleDataInGlobalStorage(
       composerData.fullConversationHeadersOnly = newBubbleHeaders;
 
       // Insert new composerData
-      db.prepare(
-        "INSERT OR REPLACE INTO cursorDiskKV (key, value) VALUES (?, ?)"
-      ).run(`composerData:${newComposerId}`, JSON.stringify(composerData));
+      db.prepare('INSERT OR REPLACE INTO cursorDiskKV (key, value) VALUES (?, ?)').run(
+        `composerData:${newComposerId}`,
+        JSON.stringify(composerData)
+      );
     }
 
     // 2. Copy all bubble entries with new IDs and transform paths
-    const bubbleRows = db.prepare(
-      "SELECT key, value FROM cursorDiskKV WHERE key LIKE ?"
-    ).all(`bubbleId:${oldComposerId}:%`) as Array<{ key: string; value: string }>;
+    const bubbleRows = db
+      .prepare('SELECT key, value FROM cursorDiskKV WHERE key LIKE ?')
+      .all(`bubbleId:${oldComposerId}:%`) as Array<{ key: string; value: string }>;
 
     for (const row of bubbleRows) {
       // Extract old bubble ID from key: bubbleId:<composerId>:<bubbleId>
@@ -394,9 +409,10 @@ function copyBubbleDataInGlobalStorage(
       const newKey = `bubbleId:${newComposerId}:${newBubbleId}`;
 
       // Insert the copied bubble with transformed paths
-      db.prepare(
-        "INSERT OR REPLACE INTO cursorDiskKV (key, value) VALUES (?, ?)"
-      ).run(newKey, JSON.stringify(bubbleData));
+      db.prepare('INSERT OR REPLACE INTO cursorDiskKV (key, value) VALUES (?, ?)').run(
+        newKey,
+        JSON.stringify(bubbleData)
+      );
     }
 
     return bubbleIdMap;
@@ -434,9 +450,9 @@ function updateBubblePathsInGlobalStorage(
 
   try {
     // Get all bubble entries for this composer
-    const bubbleRows = db.prepare(
-      "SELECT key, value FROM cursorDiskKV WHERE key LIKE ?"
-    ).all(`bubbleId:${composerId}:%`) as Array<{ key: string; value: string }>;
+    const bubbleRows = db
+      .prepare('SELECT key, value FROM cursorDiskKV WHERE key LIKE ?')
+      .all(`bubbleId:${composerId}:%`) as Array<{ key: string; value: string }>;
 
     for (const row of bubbleRows) {
       // Parse the bubble data
@@ -451,9 +467,10 @@ function updateBubblePathsInGlobalStorage(
 
       // Only update if paths were transformed
       if (result.transformed > 0) {
-        db.prepare(
-          "UPDATE cursorDiskKV SET value = ? WHERE key = ?"
-        ).run(JSON.stringify(bubbleData), row.key);
+        db.prepare('UPDATE cursorDiskKV SET value = ? WHERE key = ?').run(
+          JSON.stringify(bubbleData),
+          row.key
+        );
       }
     }
   } finally {
@@ -545,7 +562,12 @@ export async function migrateSession(
       if (mode === 'move') {
         // Remove from source
         const newSourceComposers = sourceResult.composers.filter((_, i) => i !== sessionIndex);
-        updateComposerData(sourceDb, newSourceComposers, sourceResult.isNewFormat, sourceResult.rawData);
+        updateComposerData(
+          sourceDb,
+          newSourceComposers,
+          sourceResult.isNewFormat,
+          sourceResult.rawData
+        );
 
         // Add to destination
         const destComposers = destResult ? destResult.composers : [];
@@ -576,10 +598,18 @@ export async function migrateSession(
         // Copy all bubble data in global storage with new IDs
         // This ensures the copy is fully independent from the original
         // T014: Transform paths during copy (AFTER copying, on new data only)
-        copyBubbleDataInGlobalStorage(sessionId, newSessionId, sourceWorkspace, normalizedDest, debug);
+        copyBubbleDataInGlobalStorage(
+          sessionId,
+          newSessionId,
+          sourceWorkspace,
+          normalizedDest,
+          debug
+        );
 
         // Deep clone and update the session with new ID
-        const copiedSession = JSON.parse(JSON.stringify(sessionToMigrate)) as { composerId?: string };
+        const copiedSession = JSON.parse(JSON.stringify(sessionToMigrate)) as {
+          composerId?: string;
+        };
         copiedSession.composerId = newSessionId;
 
         // Add to destination (don't modify source)
@@ -629,7 +659,9 @@ export async function migrateSession(
  * @param options - Migration options including session IDs
  * @returns Array of results for each session
  */
-export async function migrateSessions(options: MigrateSessionOptions): Promise<SessionMigrationResult[]> {
+export async function migrateSessions(
+  options: MigrateSessionOptions
+): Promise<SessionMigrationResult[]> {
   const { sessionIds, ...sessionOptions } = options;
   const results: SessionMigrationResult[] = [];
 
@@ -663,7 +695,9 @@ export async function migrateSessions(options: MigrateSessionOptions): Promise<S
  * @param options - Workspace migration options
  * @returns Aggregate result with per-session details
  */
-export async function migrateWorkspace(options: MigrateWorkspaceOptions): Promise<WorkspaceMigrationResult> {
+export async function migrateWorkspace(
+  options: MigrateWorkspaceOptions
+): Promise<WorkspaceMigrationResult> {
   const { source, destination, mode, dryRun, force, dataPath, debug = false } = options;
 
   // Normalize paths

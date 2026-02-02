@@ -200,7 +200,9 @@ export class NoSessionsFoundError extends Error {
   path: string;
 
   constructor(path: string) {
-    super(`No sessions found for workspace: ${path}. Use 'cursor-history list --workspace "${path}"' to verify.`);
+    super(
+      `No sessions found for workspace: ${path}. Use 'cursor-history list --workspace "${path}"' to verify.`
+    );
     this.path = path;
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, NoSessionsFoundError);
@@ -266,7 +268,9 @@ export function isNoSessionsFoundError(error: unknown): error is NoSessionsFound
 /**
  * Type guard to check if an error is a DestinationHasSessionsError.
  */
-export function isDestinationHasSessionsError(error: unknown): error is DestinationHasSessionsError {
+export function isDestinationHasSessionsError(
+  error: unknown
+): error is DestinationHasSessionsError {
   return error instanceof DestinationHasSessionsError;
 }
 
@@ -482,7 +486,9 @@ export class IntegrityError extends RestoreError {
   failedFiles: string[];
 
   constructor(failedFiles: string[]) {
-    super(`Backup integrity check failed for ${failedFiles.length} file(s): ${failedFiles.join(', ')}`);
+    super(
+      `Backup integrity check failed for ${failedFiles.length} file(s): ${failedFiles.join(', ')}`
+    );
     this.failedFiles = failedFiles;
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, IntegrityError);

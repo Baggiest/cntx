@@ -9,7 +9,16 @@
  */
 
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, readFileSync, writeFileSync, rmdirSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+  readFileSync,
+  writeFileSync,
+  rmdirSync,
+} from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join, dirname, sep } from 'node:path';
@@ -154,10 +163,7 @@ export function scanDatabaseFiles(dataPath: string): DatabaseFileInfo[] {
 /**
  * T009: Create a manifest object from file entries and stats
  */
-export function createManifest(
-  files: BackupFileEntry[],
-  stats: BackupStats
-): BackupManifest {
+export function createManifest(files: BackupFileEntry[], stats: BackupStats): BackupManifest {
   const platform = process.platform as 'darwin' | 'win32' | 'linux';
 
   return {
@@ -179,9 +185,9 @@ function countSessions(dbPath: string): number {
     const db = registry.openSync(dbPath, { readonly: true });
     try {
       // Try to read composer data
-      const row = db.prepare("SELECT value FROM ItemTable WHERE key = 'composer.composerData'").get() as
-        | { value: string }
-        | undefined;
+      const row = db
+        .prepare("SELECT value FROM ItemTable WHERE key = 'composer.composerData'")
+        .get() as { value: string } | undefined;
       if (row) {
         const data = JSON.parse(row.value) as { allComposers?: unknown[] } | unknown[];
         if (Array.isArray(data)) {
@@ -481,7 +487,10 @@ class TempFileCleanupWrapper implements DatabaseInterface {
  * Extracts to a temp file since SQLite needs file access.
  * Returns a Database interface compatible with the pluggable driver system.
  */
-export async function openBackupDatabase(backupPath: string, dbPath: string): Promise<DatabaseInterface> {
+export async function openBackupDatabase(
+  backupPath: string,
+  dbPath: string
+): Promise<DatabaseInterface> {
   const data = await readFile(backupPath);
   const zip = await JSZip.loadAsync(data);
   const dbFile = zip.file(dbPath);

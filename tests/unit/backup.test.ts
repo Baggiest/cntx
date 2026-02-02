@@ -170,7 +170,10 @@ describe('createManifest', () => {
 
     expect(manifest.version).toBe('1.0.0');
     expect(manifest.createdAt).toBeDefined();
-    expect(manifest.sourcePlatform).toBe('linux');
+    // Platform should match the actual OS
+    const expectedPlatform = process.platform === 'darwin' ? 'darwin' :
+                             process.platform === 'win32' ? 'win32' : 'linux';
+    expect(manifest.sourcePlatform).toBe(expectedPlatform);
     expect(manifest.files).toEqual(files);
     expect(manifest.stats).toEqual(stats);
   });
