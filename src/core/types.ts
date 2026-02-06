@@ -287,7 +287,7 @@ export interface BackupManifest {
   createdAt: string;
   /** Platform where backup was created */
   sourcePlatform: 'darwin' | 'win32' | 'linux';
-  /** cursor-history version that created the backup */
+  /** cntx version that created the backup */
   cursorHistoryVersion: string;
   /** List of files in the backup with metadata */
   files: BackupFileEntry[];
@@ -327,7 +327,7 @@ export interface BackupStats {
 export interface BackupConfig {
   /** Source Cursor data path (default: platform-specific) */
   sourcePath?: string;
-  /** Output file path (default: ~/cursor-history-backups/<timestamp>.zip) */
+  /** Output file path (default: ~/cntx-backups/<timestamp>.zip) */
   outputPath?: string;
   /** Overwrite existing file without prompting */
   force?: boolean;

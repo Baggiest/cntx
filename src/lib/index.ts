@@ -1,9 +1,9 @@
 /**
- * cursor-history Library API
+ * cntx Library API
  *
  * IMPORTANT: This is a library interface for direct import and use in TypeScript/JavaScript
  * projects, NOT a network/REST API. Functions are imported directly:
- * `import { listSessions, getSession, searchSessions } from 'cursor-history'`
+ * `import { listSessions, getSession, searchSessions } from 'cntx'`
  */
 
 // Export all public types

@@ -2,10 +2,10 @@
  * CLI command for migrating individual sessions between workspaces
  *
  * Usage:
- *   cursor-history migrate-session <session> <destination>
- *   cursor-history migrate-session 3 /path/to/new/project
- *   cursor-history migrate-session 1,3,5 /path/to/new/project
- *   cursor-history migrate-session --dry-run 3 /path/to/new/project
+ *   cntx migrate-session <session> <destination>
+ *   cntx migrate-session 3 /path/to/new/project
+ *   cntx migrate-session 1,3,5 /path/to/new/project
+ *   cntx migrate-session --dry-run 3 /path/to/new/project
  */
 
 import { Command } from 'commander';
@@ -144,7 +144,7 @@ function outputResults(
 
 function formatError(error: unknown): string {
   if (isSessionNotFoundError(error)) {
-    return `Session not found: ${error.identifier}\nRun 'cursor-history list' to see available sessions.`;
+    return `Session not found: ${error.identifier}\nRun 'cntx list' to see available sessions.`;
   }
 
   if (isWorkspaceNotFoundError(error)) {

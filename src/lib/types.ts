@@ -1,9 +1,9 @@
 /**
- * Public TypeScript type definitions for cursor-history library
+ * Public TypeScript type definitions for the cntx library
  *
  * IMPORTANT: This is a library interface for direct import and use in TypeScript/JavaScript
  * projects, NOT a network/REST API. Functions are imported directly:
- * `import { Session, Message } from 'cursor-history'`
+ * `import { Session, Message } from 'cntx'`
  */
 
 /**

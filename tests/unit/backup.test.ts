@@ -88,7 +88,7 @@ beforeEach(() => {
 describe('getDefaultBackupDir', () => {
   it('returns path under home directory', () => {
     const result = getDefaultBackupDir();
-    expect(result).toBe(join(homedir(), 'cursor-history-backups'));
+    expect(result).toBe(join(homedir(), 'cntx-backups'));
   });
 });
 
@@ -118,7 +118,7 @@ describe('computeChecksum', () => {
 describe('generateBackupFilename', () => {
   it('returns filename with correct format', () => {
     const filename = generateBackupFilename();
-    expect(filename).toMatch(/^cursor_history_backup_\d{4}-\d{2}-\d{2}_\d{6}\.zip$/);
+    expect(filename).toMatch(/^cntx_backup_\d{4}-\d{2}-\d{2}_\d{6}\.zip$/);
   });
 });
 

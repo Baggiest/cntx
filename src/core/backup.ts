@@ -48,10 +48,10 @@ const MANIFEST_VERSION = '1.0.0';
 
 /**
  * T005: Get the default backup directory path
- * Returns ~/cursor-history-backups/
+ * Returns ~/cntx-backups/
  */
 export function getDefaultBackupDir(): string {
-  return join(homedir(), 'cursor-history-backups');
+  return join(homedir(), 'cntx-backups');
 }
 
 /**
@@ -63,7 +63,7 @@ export function computeChecksum(buffer: Buffer): string {
 
 /**
  * T007: Generate a timestamped backup filename
- * Format: cursor_history_backup_YYYY-MM-DD_HHMMSS.zip
+ * Format: cntx_backup_YYYY-MM-DD_HHMMSS.zip
  */
 export function generateBackupFilename(): string {
   const now = new Date();
@@ -74,7 +74,7 @@ export function generateBackupFilename(): string {
   const minutes = String(now.getMinutes()).padStart(2, '0');
   const seconds = String(now.getSeconds()).padStart(2, '0');
 
-  return `cursor_history_backup_${year}-${month}-${day}_${hours}${minutes}${seconds}.zip`;
+  return `cntx_backup_${year}-${month}-${day}_${hours}${minutes}${seconds}.zip`;
 }
 
 /**

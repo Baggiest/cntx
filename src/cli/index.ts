@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * CLI entry point for cursor-history
+ * CLI entry point for cntx
  */
 
 import { Command } from 'commander';

@@ -30,7 +30,7 @@ import type {
  *
  * @example
  * ```typescript
- * import { createBackup } from 'cursor-history';
+ * import { createBackup } from 'cntx';
  *
  * // Basic usage
  * const result = await createBackup();
@@ -58,7 +58,7 @@ export async function createBackup(config?: BackupConfig): Promise<BackupResult>
  *
  * @example
  * ```typescript
- * import { restoreBackup } from 'cursor-history';
+ * import { restoreBackup } from 'cntx';
  *
  * const result = await restoreBackup({
  *   backupPath: '/path/to/backup.zip',
@@ -78,7 +78,7 @@ export async function restoreBackup(config: RestoreConfig): Promise<RestoreResul
  *
  * @example
  * ```typescript
- * import { validateBackup } from 'cursor-history';
+ * import { validateBackup } from 'cntx';
  *
  * const validation = await validateBackup('/path/to/backup.zip');
  * if (validation.status === 'valid') {
@@ -93,12 +93,12 @@ export async function validateBackup(backupPath: string): Promise<BackupValidati
 /**
  * List available backup files in a directory.
  *
- * @param directory - Directory to scan (default: ~/cursor-history-backups)
+ * @param directory - Directory to scan (default: ~/cntx-backups)
  * @returns Promise resolving to array of backup info objects
  *
  * @example
  * ```typescript
- * import { listBackups } from 'cursor-history';
+ * import { listBackups } from 'cntx';
  *
  * const backups = await listBackups();
  * for (const backup of backups) {
@@ -113,14 +113,14 @@ export async function listBackups(directory?: string): Promise<BackupInfo[]> {
 /**
  * Get the default backup directory path.
  *
- * @returns Default backup directory path (~/cursor-history-backups)
+ * @returns Default backup directory path (~/cntx-backups)
  *
  * @example
  * ```typescript
- * import { getDefaultBackupDir } from 'cursor-history';
+ * import { getDefaultBackupDir } from 'cntx';
  *
  * const dir = getDefaultBackupDir();
- * // Returns: /home/user/cursor-history-backups (Linux)
+ * // Returns: /home/user/cntx-backups (Linux)
  * ```
  */
 export function getDefaultBackupDir(): string {

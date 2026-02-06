@@ -56,12 +56,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/S2thend/cursor-history.git"
+    "url": "git+https://github.com/S2thend/cntx.git"
   },
   "bugs": {
-    "url": "https://github.com/S2thend/cursor-history/issues"
+    "url": "https://github.com/S2thend/cntx/issues"
   },
-  "homepage": "https://github.com/S2thend/cursor-history#readme",
+  "homepage": "https://github.com/S2thend/cntx#readme",
   "files": [
     "dist",
     "README.md",

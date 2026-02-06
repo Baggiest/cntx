@@ -111,7 +111,7 @@ export function registerBackupCommand(program: Command): void {
     .description('Create a full backup of all Cursor chat history')
     .option(
       '-o, --output <path>',
-      'Output file path (default: ~/cursor-history-backups/<timestamp>.zip)'
+      'Output file path (default: ~/cntx-backups/<timestamp>.zip)'
     )
     .option('-f, --force', 'Overwrite existing backup file')
     .action(async (options: BackupCommandOptions, command: Command) => {

@@ -131,7 +131,7 @@ export function registerListBackupsCommand(program: Command): void {
     .command('list-backups')
     .alias('backups')
     .description('List available backup files')
-    .option('-d, --directory <path>', 'Directory to scan (default: ~/cursor-history-backups)')
+    .option('-d, --directory <path>', 'Directory to scan (default: ~/cntx-backups)')
     .action(async (options: ListBackupsCommandOptions, command: Command) => {
       const globalOptions = command.parent?.opts() as { json?: boolean };
       const useJson = options.json ?? globalOptions?.json ?? false;
@@ -155,7 +155,7 @@ export function registerListBackupsCommand(program: Command): void {
             console.error(pc.yellow('Backup directory not found:'));
             console.error(pc.dim(`  ${contractPath(directory)}`));
             console.error('');
-            console.error(pc.dim('Create a backup first with: cursor-history backup'));
+            console.error(pc.dim('Create a backup first with: cntx backup'));
           }
           process.exit(ExitCode.USAGE_ERROR);
         }
@@ -177,7 +177,7 @@ export function registerListBackupsCommand(program: Command): void {
             console.log(pc.dim('No backups found in:'));
             console.log(pc.dim(`  ${contractPath(directory)}`));
             console.log('');
-            console.log(pc.dim('Create a backup with: cursor-history backup'));
+            console.log(pc.dim('Create a backup with: cntx backup'));
           }
           return; // Exit code 0 - this is informational, not an error
         }

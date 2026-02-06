@@ -36,7 +36,7 @@ vi.mock('../../src/core/storage.js', () => ({
 }));
 
 const mockListBackups = vi.fn();
-const mockGetDefaultBackupDir = vi.fn(() => '/home/user/cursor-history-backups');
+const mockGetDefaultBackupDir = vi.fn(() => '/home/user/cntx-backups');
 const mockCreateBackup = vi.fn();
 
 vi.mock('../../src/core/backup.js', () => ({

@@ -140,7 +140,7 @@ export class SessionNotFoundError extends Error {
   identifier: string | number;
 
   constructor(identifier: string | number) {
-    super(`Session not found: ${identifier}. Use 'cursor-history list' to see available sessions.`);
+    super(`Session not found: ${identifier}. Use 'cntx list' to see available sessions.`);
     this.identifier = identifier;
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, SessionNotFoundError);
@@ -201,7 +201,7 @@ export class NoSessionsFoundError extends Error {
 
   constructor(path: string) {
     super(
-      `No sessions found for workspace: ${path}. Use 'cursor-history list --workspace "${path}"' to verify.`
+      `No sessions found for workspace: ${path}. Use 'cntx list --workspace "${path}"' to verify.`
     );
     this.path = path;
     if (Error.captureStackTrace) {

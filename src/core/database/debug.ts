@@ -1,7 +1,7 @@
 /**
  * Debug Logging Utility
  *
- * Outputs diagnostic messages to stderr when DEBUG or CURSOR_HISTORY_DEBUG
+ * Outputs diagnostic messages to stderr when DEBUG or CNTX_DEBUG
  * environment variable is set.
  */
 
@@ -10,7 +10,7 @@
  * @param message - Message to log
  */
 export function debugLog(message: string): void {
-  if (process.env['DEBUG'] || process.env['CURSOR_HISTORY_DEBUG']) {
-    console.error(`[cursor-history:sqlite] ${message}`);
+  if (process.env['DEBUG'] || process.env['CNTX_DEBUG']) {
+    console.error(`[cntx:sqlite] ${message}`);
   }
 }

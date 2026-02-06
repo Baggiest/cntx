@@ -34,7 +34,7 @@ describe('createBackup', () => {
   it('delegates to core createBackup without config', async () => {
     const mockResult = {
       success: true,
-      backupPath: '/home/user/cursor-history-backups/2024-01-15.zip',
+      backupPath: '/home/user/cntx-backups/2024-01-15.zip',
       manifest: {
         version: '1.0',
         createdAt: new Date('2024-01-15T10:00:00Z'),
@@ -88,7 +88,7 @@ describe('createBackup', () => {
     const config = { onProgress };
     const mockResult = {
       success: true,
-      backupPath: '/home/user/cursor-history-backups/2024-01-15.zip',
+      backupPath: '/home/user/cntx-backups/2024-01-15.zip',
       manifest: {
         version: '1.0',
         createdAt: new Date('2024-01-15T10:00:00Z'),
@@ -258,7 +258,7 @@ describe('listBackups', () => {
   it('delegates to core listBackups without directory', async () => {
     const mockBackups = [
       {
-        filePath: '/home/user/cursor-history-backups/backup-1.zip',
+        filePath: '/home/user/cntx-backups/backup-1.zip',
         filename: 'backup-1.zip',
         fileSize: 1024000,
         modifiedAt: new Date('2024-01-15T10:00:00Z'),
@@ -311,7 +311,7 @@ describe('listBackups', () => {
   it('returns backup info with optional manifest', async () => {
     const mockBackups = [
       {
-        filePath: '/home/user/cursor-history-backups/valid.zip',
+        filePath: '/home/user/cntx-backups/valid.zip',
         filename: 'valid.zip',
         fileSize: 2048000,
         modifiedAt: new Date('2024-01-15T10:00:00Z'),
@@ -327,7 +327,7 @@ describe('listBackups', () => {
         },
       },
       {
-        filePath: '/home/user/cursor-history-backups/invalid.zip',
+        filePath: '/home/user/cntx-backups/invalid.zip',
         filename: 'invalid.zip',
         fileSize: 512000,
         modifiedAt: new Date('2024-01-14T10:00:00Z'),
@@ -348,7 +348,7 @@ describe('listBackups', () => {
 // =============================================================================
 describe('getDefaultBackupDir', () => {
   it('delegates to core getDefaultBackupDir', () => {
-    const expectedPath = '/home/user/cursor-history-backups';
+    const expectedPath = '/home/user/cntx-backups';
     mockCoreGetDefaultBackupDir.mockReturnValue(expectedPath);
 
     const result = getDefaultBackupDir();

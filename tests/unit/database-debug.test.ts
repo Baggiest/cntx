@@ -8,16 +8,16 @@ afterEach(() => {
 
 describe('debugLog', () => {
   it('writes to stderr when DEBUG is set', () => {
-    vi.stubEnv('DEBUG', 'cursor-history:*');
-    vi.stubEnv('CURSOR_HISTORY_DEBUG', '');
+    vi.stubEnv('DEBUG', 'cntx:*');
+    vi.stubEnv('CNTX_DEBUG', '');
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     debugLog('test message');
-    expect(spy).toHaveBeenCalledWith('[cursor-history:sqlite] test message');
+    expect(spy).toHaveBeenCalledWith('[cntx:sqlite] test message');
   });
 
-  it('writes to stderr when CURSOR_HISTORY_DEBUG is set', () => {
+  it('writes to stderr when CNTX_DEBUG is set', () => {
     vi.stubEnv('DEBUG', '');
-    vi.stubEnv('CURSOR_HISTORY_DEBUG', '1');
+    vi.stubEnv('CNTX_DEBUG', '1');
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     debugLog('test message');
     expect(spy).toHaveBeenCalled();
@@ -25,7 +25,7 @@ describe('debugLog', () => {
 
   it('does not write when neither env is set', () => {
     vi.stubEnv('DEBUG', '');
-    vi.stubEnv('CURSOR_HISTORY_DEBUG', '');
+    vi.stubEnv('CNTX_DEBUG', '');
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     debugLog('test message');
     expect(spy).not.toHaveBeenCalled();
