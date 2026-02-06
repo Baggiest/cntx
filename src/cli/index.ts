@@ -20,7 +20,7 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'
 const program = new Command();
 
 program
-  .name('cursor-history')
+  .name('cntx')
   .description('View and search Cursor IDE chat history')
   .version(packageJson.version, '-v, --version', 'Show version number')
   .option('--json', 'Output in JSON format')
